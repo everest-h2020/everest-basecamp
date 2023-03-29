@@ -1,0 +1,15 @@
+#!/bin/bash
+#  *
+#  *                       EVEREST
+#  *    =============================================
+#  *     Created: Mar 2023
+#  *     Authors: ngl@zurich.ibm.com
+#  *
+#  *     Description:
+#  *       Bash wrapper to offer a CLI for everest-basecamp
+#  *
+#  *
+
+# TODO?
+# source venv/bin/activate
+python3 ebc/cli.py "$@"
