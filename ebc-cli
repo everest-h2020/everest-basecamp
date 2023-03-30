@@ -10,6 +10,9 @@
 #  *
 #  *
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 # TODO?
 # source venv/bin/activate
+export PYTHONPATH=$SCRIPT_DIR
 python3 ebc/cli.py "$@"

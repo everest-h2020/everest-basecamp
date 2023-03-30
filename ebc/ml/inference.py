@@ -1,4 +1,3 @@
-
 import os
 import json
 
@@ -85,7 +84,30 @@ class Emli(BasecampFlowModule):
         self._call_dosa()
 
     def cli(self, args, config):
-        pass
+        if args['--json-constraints'] is not None:
+            with open(args['--json-constraints'], 'r') as inp:
+                json_dict = json.load(inp)
+            self.set_constraint_dict(json_dict)
+        else:
+            # we don't need to check the "correctness" that's done by docopt
+            precision = args['--used_bit_width']
+            self.set_constraints(app_name=args['--app-name'],
+                                 onnx_input_name=args['--onnx-input-name'],
+                                 input_shape=args['--onnx-input-shape'],
+                                 input_size_t=precision,
+                                 bitwidth_of_activations=precision,
+                                 bitwidth_of_weights=precision,
+                                 batch_size=args['--batch-size'],
+                                 target_throughput=args['--target-throughput'],
+                                 arch_gen_strategy='throughput'
+                                 )
+        if args['--map-weights'] is not None:
+            self.log.error("Kernel-mapping schema is NOT YET IMPLEMENTED.")
+            return -1
+        self.set_output_path(args['<path-to-output-directory>'])
+        self.set_onnx_path(args['<path-to-onnx>'])
+        self.compile()
+        return 0
 
     def get_constraints(self):
         return self.app_constraints
@@ -136,4 +158,3 @@ class Emli(BasecampFlowModule):
     def set_onnx_path(self, onnx_path):
         self.onnx_path = os.path.abspath(onnx_path)
         self.model_set = True
-

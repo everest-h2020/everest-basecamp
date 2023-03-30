@@ -6,9 +6,9 @@ class Ohua(BasecampFlowModule):
 
     def compile(self, **kwargs):
         print("Please ask Felix for the state of this flow...")
-        pass
+        raise NotImplementedError
 
     def cli(self, args, config):
         print("Please ask Felix for the state of this flow...")
-        pass
+        raise NotImplementedError
 
