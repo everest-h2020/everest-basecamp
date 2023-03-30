@@ -10,5 +10,6 @@ __version__ = 0.1
 
 
 arguments = docopt(basecamp.docstr, version=__version__)
-basecamp.cli(arguments)
+rv = basecamp.cli(arguments)
+exit(rv)
 
