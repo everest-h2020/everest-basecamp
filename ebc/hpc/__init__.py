@@ -1,6 +1,7 @@
 
 from .cfdlang import Cfdlang
 
-module = cfdlang
+module = Cfdlang
 identifier = 'hpc'
 
+docstrs = {'usage': [], 'commands': [], 'options': []}

@@ -1,0 +1,24 @@
+{
+  "name": "",
+  "shape_dict": {
+    "input_dummy_0": [
+      42,
+      42
+    ]
+  },
+  "used_input_size_t": -1,
+  "quantization": "none",
+  "overwrite_dtypes": {
+    "data": "unknown",
+    "weights": "unknown",
+    "fixed_point_fraction_bits": -1,
+    "accum_bits_factor": -1
+  },
+  "used_batch_n": 1,
+  "target_sps": -1,
+  "target_latency": -1,
+  "target_resource_budget": 0,
+  "targeted_hw": ["cF_FMKU60_Themisto_1"],
+  "fallback_hw": ["vCPU_x86"],
+  "arch_gen_strategy": "throughput"
+}

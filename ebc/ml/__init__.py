@@ -1,8 +1,7 @@
 
-from .inference import emli
+from .inference import Emli
 
-module = emli
-identifier = 'ml-inference'
+module = Emli
+identifier = 'ml_inference'
 
-docstrs = ['some command', 'another option']
-
+docstrs = {'usage': [], 'commands': [], 'options': []}
