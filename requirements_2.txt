@@ -31,7 +31,7 @@ exceptiongroup==1.1.1
 executing==1.2.0
 fastjsonschema==2.16.3
 filelock==3.12.0
-flatbuffers==23.3.3
+flatbuffers==2.0.7
 fonttools==4.39.3
 fqdn==1.5.1
 fxpmath==0.4.8
@@ -158,6 +158,7 @@ tensorflow-estimator==2.12.0
 tensorflow-io-gcs-filesystem==0.32.0
 termcolor==2.3.0
 terminado==0.17.1
+tf2onnx==1.14.0
 tinycss2==1.2.1
 toml==0.10.2
 tomli==2.0.1
