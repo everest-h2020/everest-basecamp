@@ -43,4 +43,10 @@ For contact and more details please visit: https://everest-h2020.eu
 
 ```
 
+## Setup
+..todo...
+```
+cp ../../cloudFPGA/DOSA/setup/_virtualenv_path_extensions.pth ./venv2/lib/python3.8/site-packages/
+python -m ipykernel install --user --name='venv2-ebc' --display-name='EVEREST basecamp (venv2)'
+```
 

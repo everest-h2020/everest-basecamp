@@ -13,7 +13,7 @@ if not (hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base
     sys.exit(1)
 
 FORMAT = '%(levelname)-9s %(threadName)-15s %(name)-15s: %(funcName)-15s %(asctime)-15s: %(message)s'
-logging.basicConfig(format=FORMAT, level='DEBUG')
+logging.basicConfig(format=FORMAT, level='WARNING')
 
 # basecamp_path = os.path.dirname(os.path.abspath(__file__))
 basecamp = EverestBasecamp()

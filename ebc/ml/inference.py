@@ -1,5 +1,7 @@
+import sys
 import os
 import json
+import subprocess
 
 from ebc.flow_module import BasecampFlowModule
 
@@ -46,6 +48,7 @@ class Emli(BasecampFlowModule):
         cmd = f'source {self.dosa_venv}/bin/activate; '
         for k, v in self.dosa_envs.items():
             cmd += f'export {k}={v}; '
+            os.environ[k] = v
         cmd += f'export PYTHONPATH={self.dosa_dir}; '
         # cmd += f'cd {self.dosa_dir}; '
         # cmd += self.dosa_exec
@@ -55,7 +58,8 @@ class Emli(BasecampFlowModule):
             json.dump(self.dosa_config, outp)
         with open(__tmp_constraint_json__, 'w') as outp:
             json.dump(self.app_constraints, outp)
-        dosa_args = f'{__tmp_dosa_config_json__} {os.path.abspath(self.onnx_path)} {__tmp_constraint_json__} ' \
+        onnx_abspath = os.path.abspath(os.path.join(__filedir__, self.onnx_path))
+        dosa_args = f'{__tmp_dosa_config_json__} {onnx_abspath} {__tmp_constraint_json__} ' \
                     f'{os.path.abspath(self.output_path)}'
         if self.disable_roofline_gui:
             dosa_args += ' --no-roofline'
@@ -63,7 +67,12 @@ class Emli(BasecampFlowModule):
             dosa_args += ' --no-build'
         cmd += ' ' + dosa_args
         self.log.debug(f"DOSA command: {cmd}")
-        os.system(cmd)
+        # os.system(cmd)
+        # subprocess.run(cmd, shell=True, stdin=sys.stdin.fileno(), stdout=sys.stdout.fileno(),
+        #                stderr=sys.stderr.fileno())
+        sys.path.insert(0, self.dosa_dir)
+        from dimidium import dosa
+        dosa(__tmp_dosa_config_json__, onnx_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path))
 
     def compile(self, **kwargs):
         # TODO: do we need kwargs?
