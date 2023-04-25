@@ -34,6 +34,7 @@ class Emli(BasecampFlowModule):
         with open(__dosa_paths_json__, 'r') as inp:
             dosa_paths = json.load(inp)
         # self.dosa_exec = os.path.abspath(os.path.join(__filedir__, dosa_paths['exec_path']))
+        # TODO: update if DOSA is a submodule...then path will be not machine/installation dependent
         self.dosa_main = os.path.abspath(os.path.join(__filedir__, dosa_paths['main_path']))
         self.dosa_venv = os.path.abspath(os.path.join(__filedir__, dosa_paths['venv_path']))
         # self.dosa_dir = os.path.dirname(self.dosa_exec)
@@ -44,7 +45,6 @@ class Emli(BasecampFlowModule):
         self.dosa_envs.update(envs)
 
     def _call_dosa(self):
-        # TODO: for now, we call dosa via shell, with new flow directly call the python object?
         cmd = f'source {self.dosa_venv}/bin/activate; '
         for k, v in self.dosa_envs.items():
             cmd += f'export {k}={v}; '
@@ -66,13 +66,21 @@ class Emli(BasecampFlowModule):
         elif self.disable_build:
             dosa_args += ' --no-build'
         cmd += ' ' + dosa_args
-        self.log.debug(f"DOSA command: {cmd}")
+        # self.log.debug(f"DOSA command: {cmd}")
         # os.system(cmd)
         # subprocess.run(cmd, shell=True, stdin=sys.stdin.fileno(), stdout=sys.stdout.fileno(),
         #                stderr=sys.stderr.fileno())
+        self.log.debug(f"calling DOSA... (with args: {dosa_args}).")
         sys.path.insert(0, self.dosa_dir)
         from dimidium import dosa
-        dosa(__tmp_dosa_config_json__, onnx_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path))
+        """
+        def dosa(dosa_config_path, onnx_path, const_path, global_build_dir, show_graphics=True, generate_build=True,
+                 generate_only_stats=False, generate_only_coverage=False):
+        """
+        generate_build = not self.disable_build
+        show_graphics = not self.disable_roofline_gui
+        dosa(__tmp_dosa_config_json__, onnx_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path),
+             show_graphics=show_graphics, generate_build=generate_build)
 
     def compile(self, **kwargs):
         # TODO: do we need kwargs?
