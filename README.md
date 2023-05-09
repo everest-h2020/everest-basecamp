@@ -46,9 +46,7 @@ For contact and more details please visit: https://everest-h2020.eu
 ## Setup
 
 The basecamp tool is still under development and therefore, there exist multiple ways to execute it. 
-Currently, there exist two setups: A *lightweight* setup and a *complete* setup. The later does include all dependencies required to run Jupyter notebooks and DOSA as standalone installation.
-
-Both setups have general requirements:
+The basecamp tool has a modular architecture with separate setup requirements for each module and a *common* general requirements setup. 
 
 ### General requirements
 
@@ -66,35 +64,32 @@ Then, we need a python virtual environment:
  ```bash
 $ virtualenv venv -p /usr/bin/python3.8
 $ . venv/bin/activate
-```
-
-The setup of the virtualenv differs based on the intended option. Hence, from here continue either with the *lightweight* or *complete* steps.
-
-### Lightweight setup
-
-```bash
-# virtualenv should be activated
 $ pip install -r requirements.txt
-```
-
-Now you can use the `ebc` module in Python or interact with the ebc command line interface (`./ebc-cli`). 
-
-### Complete setup
-
-```bash
-# virtualenv should be activated
-$ pip install -r requirements_2.txt
-$ cp <DOSA-repository>/setup/_virtualenv_path_extensions.pth ./venv/lib/python3.8/site-packages/
 $ python -m ipykernel install --user --name='venv-ebc' --display-name='EVEREST basecamp (venv)'
 ```
 
-Now you can use the `ebc` module in Python or interact with the ebc command line interface (`./ebc-cli`). 
-Furhtermore, you can execute all Everst flows in notebooks by starting the JupyterLab server:
+Now you can use the `ebc` module in Python or interact with the ebc command line interface (`./ebc-cli`).
+
+Furthermore, you can execute all Everest flows in notebooks by starting the JupyterLab server:
 
 ```bash
 $ jupyter-lab
 ```
 As execution Kernel, the previous specified `EVEREST basecamp (venv)` needs to be used.
 
-(It is also possible to have the lightweight and complete setup in parallel by creating two different virtual environments.)
+### Module installations
+
+The setup of the available modules (`ml`, `dataflow`, `hpc`) is independent of each other and the respective guides can be found in the module folders:
+
+- [ML inference](./ebc/ml/install.md)
+- [HPC](./ebc/hpc/install.md)
+- [Dataflow](./ebc/dataflow/install.md)
+
+
+(It is also possible to have different virtual environments for each module.)
+
+## Module structure (for development)
+This sections states the requirements for each module and is intended to be read by the *developers* of the individual modules: 
+
+
 

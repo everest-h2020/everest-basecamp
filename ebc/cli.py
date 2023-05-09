@@ -1,7 +1,4 @@
 
-import json
-import os
-import sys
 from docopt import docopt
 
 from ebc import basecamp

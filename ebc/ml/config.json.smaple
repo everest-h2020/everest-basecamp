@@ -1,0 +1,6 @@
+{
+  "dosa_dir_path": "../path/from/here/to/DOSA/",
+  "env_vars": {
+    "DOSA_cFBuild1_used_dcps_path": "../path/from/here/to/cloudFPGA/dcps/"
+  }
+}

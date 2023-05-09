@@ -6,10 +6,9 @@ import subprocess
 from ebc.flow_module import BasecampFlowModule
 
 __filedir__ = os.path.dirname(os.path.abspath(__file__))
-__default_dosa_config_path__ = os.path.abspath(os.path.join(__filedir__, 'dosa_config_0.json'))
+__default_dosa_config_path__ = os.path.abspath(os.path.join(__filedir__, 'dosa_config_default.json'))
 __constraint_template_path__ = os.path.abspath(os.path.join(__filedir__, 'meta_template.json'))
-__dosa_paths_json__ = os.path.abspath(os.path.join(__filedir__, 'dosa_paths.json'))
-__dosa_envs_json__ = os.path.abspath(os.path.join(__filedir__, 'dosa_envs.json'))
+__config_json__ = os.path.abspath(os.path.join(__filedir__, 'config.json'))
 __arch_gen_strategies__ = ['performance', 'resources', 'default', 'latency', 'throughput']
 __tmp_constraint_json__ = '/tmp/ecb-dosa-constraints.json'
 __tmp_dosa_config_json__ = '/tmp/ecb-dosa-config.json'
@@ -31,28 +30,30 @@ class Emli(BasecampFlowModule):
         self.map_weights = None
         self.disable_roofline_gui = False
         self.disable_build = False
-        with open(__dosa_paths_json__, 'r') as inp:
-            dosa_paths = json.load(inp)
-        # self.dosa_exec = os.path.abspath(os.path.join(__filedir__, dosa_paths['exec_path']))
+        with open(__config_json__, 'r') as inp:
+            module_config = json.load(inp)
+        self.log.warning(f"[ML inference module] using the module configuration at {__config_json__}.")
+        # self.dosa_exec = os.path.abspath(os.path.join(__filedir__, module_config['exec_path']))
         # TODO: update if DOSA is a submodule...then path will be not machine/installation dependent
-        self.dosa_main = os.path.abspath(os.path.join(__filedir__, dosa_paths['main_path']))
-        self.dosa_venv = os.path.abspath(os.path.join(__filedir__, dosa_paths['venv_path']))
+        # self.dosa_main = os.path.abspath(os.path.join(__filedir__, module_config['main_path']))
+        # self.dosa_venv = os.path.abspath(os.path.join(__filedir__, module_config['venv_path']))
         # self.dosa_dir = os.path.dirname(self.dosa_exec)
-        self.dosa_dir = os.path.dirname(self.dosa_venv)
-        with open(__dosa_envs_json__, 'r') as inp:
-            envs = json.load(inp)
+        # self.dosa_dir = os.path.dirname(self.dosa_venv)
+        self.dosa_dir = os.path.abspath(os.path.join(__filedir__, module_config['dosa_dir_path']))
+        envs = module_config['env_vars']
         self.dosa_envs = {}
         self.dosa_envs.update(envs)
 
     def _call_dosa(self):
-        cmd = f'source {self.dosa_venv}/bin/activate; '
-        for k, v in self.dosa_envs.items():
-            cmd += f'export {k}={v}; '
-            os.environ[k] = v
-        cmd += f'export PYTHONPATH={self.dosa_dir}; '
-        # cmd += f'cd {self.dosa_dir}; '
-        # cmd += self.dosa_exec
-        cmd += f'python3 {self.dosa_main}'
+        # cmd = f'source {self.dosa_venv}/bin/activate; '
+        # for k, v in self.dosa_envs.items():
+        #     cmd += f'export {k}={v}; '
+        #     os.environ[k] = v
+        # cmd += f'export PYTHONPATH={self.dosa_dir}; '
+        # # cmd += f'cd {self.dosa_dir}; '
+        # # cmd += self.dosa_exec
+        # cmd += f'python3 {self.dosa_main}'
+
         # add args
         with open(__tmp_dosa_config_json__, 'w') as outp:
             json.dump(self.dosa_config, outp)
@@ -65,12 +66,14 @@ class Emli(BasecampFlowModule):
             dosa_args += ' --no-roofline'
         elif self.disable_build:
             dosa_args += ' --no-build'
-        cmd += ' ' + dosa_args
+
+        # cmd += ' ' + dosa_args
         # self.log.debug(f"DOSA command: {cmd}")
         # os.system(cmd)
         # subprocess.run(cmd, shell=True, stdin=sys.stdin.fileno(), stdout=sys.stdout.fileno(),
         #                stderr=sys.stderr.fileno())
         self.log.debug(f"calling DOSA... (with args: {dosa_args}).")
+        self.log.debug(f"trying to import DOSA from {self.dosa_dir}.")
         sys.path.insert(0, self.dosa_dir)
         from dimidium import dosa
         """
