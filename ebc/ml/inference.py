@@ -32,7 +32,7 @@ class Emli(BasecampFlowModule):
         self.disable_build = False
         with open(__config_json__, 'r') as inp:
             module_config = json.load(inp)
-        self.log.warning(f"[ML inference module] using the module configuration at {__config_json__}.")
+        self.log.info(f"[ML inference module] using the module configuration at {__config_json__}.")
         # self.dosa_exec = os.path.abspath(os.path.join(__filedir__, module_config['exec_path']))
         # TODO: update if DOSA is a submodule...then path will be not machine/installation dependent
         # self.dosa_main = os.path.abspath(os.path.join(__filedir__, module_config['main_path']))

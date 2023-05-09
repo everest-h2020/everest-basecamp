@@ -91,5 +91,15 @@ The setup of the available modules (`ml`, `dataflow`, `hpc`) is independent of e
 ## Module structure (for development)
 This sections states the requirements for each module and is intended to be read by the *developers* of the individual modules: 
 
-
+Basecamp is designed to give a unified experience to the user while keeping the dependencies between the modules minimal.
+Therefore, the requirements for a basecamp module are short:
+1. It must be in a subfolder within [`./ebc`](./ebc)
+2. This subfolder must contain a `__init__.py` that contains three objects:
+    - `identifier`: A string that is unique for this module and is following python variable name restrictions (i.e. it must start with a letter or underscore and consists only of letters, numbers, and underscores) (it is used as an attribute internally).
+    - `docstrs`: A dictionary containing three entries to be used to construct the `docopt` string (i.e. the entries must follow the [docopt syntax](http://docopt.org)):
+      - `usage`: *One* string in one line that describes the CLI for this module (in the `Usage:` part of the docopt).
+      - `commands`: *One* tuple containing the command and its description (for the `Commands:` section of docopt).
+      - `options`: A *list of tuples*, each containing the command and its description (for the `Options:` part). 
+    - `module`: A variable that points to the module class, which must inherit from the [`BasecampFlowModule`](./ebc/flow_module.py) and implement the `cli` and `compile` methods.
+3. Add the `import <folder-name>` statement at the top of the [everest_basecamp.py](./ebc/everest_basecamp.py) file (below the line `import individual modules below`).  
 

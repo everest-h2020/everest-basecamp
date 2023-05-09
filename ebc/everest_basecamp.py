@@ -4,10 +4,14 @@ import os
 
 __filedir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, __filedir__)
+# import individual modules below
+# --------------------------------
 import dataflow
 import hpc
 import ml
 import automatic
+# --------------------------------
+
 
 __cli_name__ = 'ebc-cli'
 __softtab__ = '    '
