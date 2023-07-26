@@ -18,6 +18,7 @@ class Emli(BasecampFlowModule):
 
     def __init__(self):
         super().__init__()
+        self._initialized_machine_specific = False
         with open(__default_dosa_config_path__, 'r') as inp:
             self.dosa_config = json.load(inp)
         with open(__constraint_template_path__, 'r') as inp:
@@ -30,6 +31,10 @@ class Emli(BasecampFlowModule):
         self.map_weights = None
         self.disable_roofline_gui = False
         self.disable_build = False
+        self.dosa_dir = None
+        self.dosa_envs = {}
+
+    def _load_machine_specific_files(self):
         with open(__config_json__, 'r') as inp:
             module_config = json.load(inp)
         self.log.info(f"[ML inference module] using the module configuration at {__config_json__}.")
@@ -43,8 +48,11 @@ class Emli(BasecampFlowModule):
         envs = module_config['env_vars']
         self.dosa_envs = {}
         self.dosa_envs.update(envs)
+        self._initialized_machine_specific = True
 
     def _call_dosa(self):
+        if not self._initialized_machine_specific:
+            self._load_machine_specific_files()
         # cmd = f'source {self.dosa_venv}/bin/activate; '
         # for k, v in self.dosa_envs.items():
         #     cmd += f'export {k}={v}; '
@@ -86,6 +94,8 @@ class Emli(BasecampFlowModule):
              show_graphics=show_graphics, generate_build=generate_build)
 
     def compile(self, **kwargs):
+        if not self._initialized_machine_specific:
+            self._load_machine_specific_files()
         # TODO: do we need kwargs?
         # if not self.constraints_set or (self.onnx_path is None and self.pytorch_module is None) \
         #     or self.output_path is None:
@@ -104,6 +114,8 @@ class Emli(BasecampFlowModule):
         self._call_dosa()
 
     def cli(self, args, config):
+        if not self._initialized_machine_specific:
+            self._load_machine_specific_files()
         if args['--json-constraints'] is not None:
             with open(args['--json-constraints'], 'r') as inp:
                 json_dict = json.load(inp)
