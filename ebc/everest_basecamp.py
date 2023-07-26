@@ -9,7 +9,7 @@ sys.path.insert(0, __filedir__)
 import dataflow
 import hpc
 import ml
-import automatic
+# import automatic
 # --------------------------------
 
 
@@ -31,7 +31,8 @@ class EverestBasecamp:
 
     def __init__(self, load_modules='default'):
         if load_modules == 'default':
-            load_modules = [dataflow, hpc, ml, automatic]
+            # load_modules = [dataflow, hpc, ml, automatic]
+            load_modules = [dataflow, hpc, ml]
         self._flows = {}
         self._doc_dict = {}
         for mod in load_modules:
