@@ -7,13 +7,18 @@ For the machine learning inference module of the everest basecamp tool, some *ad
 2. After DOSA is installed, the following steps are necessary to use DOSA within the basecamp tool: 
 ```bash
 # virtualenv of everest-basecamp should be activated
-$ pip install -r ebc/ml/requirements.txt
+$ pip install -r ebc/ml/requirements.txt --no-dependencies
 $ cp <DOSA-repository>/setup/_virtualenv_path_extensions.pth ./path/to/ebc-virtualenv/lib/python3.8/site-packages/
+# or, copy directly <DOSA-repository>/venv/lib/python3.8/site-packages/__virtualenv_path_extensions.pth
 $ cd ebc/ml
 $ cp config.json.sample config.sample  # adapt the paths in config.sample to point to the local DOSA installation
 ```
 
-
+to use this environment in a jupyter notebook, execute
+```bash
+# with virutalenv activated
+$ python -m ipykernel install --user --name='venv-ebc' --display-name='EVEREST basecamp (venv)'
+```
 
 
 

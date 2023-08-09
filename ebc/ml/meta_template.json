@@ -8,12 +8,6 @@
   },
   "used_input_size_t": -1,
   "quantization": "none",
-  "overwrite_dtypes": {
-    "data": "unknown",
-    "weights": "unknown",
-    "fixed_point_fraction_bits": -1,
-    "accum_bits_factor": -1
-  },
   "used_batch_n": 1,
   "target_sps": -1,
   "target_latency": -1,

@@ -24,11 +24,13 @@ class Emli(BasecampFlowModule):
         with open(__constraint_template_path__, 'r') as inp:
             self.app_constraints = json.load(inp)
         self.constraints_set = False
-        self.onnx_path = None
+        self.used_flow = None
+        self.model_path = None
         self.pytorch_module = None
         self.model_set = False
         self.output_path = None
         self.map_weights = None
+        self.calibration_data = None
         self.disable_roofline_gui = False
         self.disable_build = False
         self.dosa_dir = None
@@ -67,9 +69,11 @@ class Emli(BasecampFlowModule):
             json.dump(self.dosa_config, outp)
         with open(__tmp_constraint_json__, 'w') as outp:
             json.dump(self.app_constraints, outp)
-        onnx_abspath = os.path.abspath(os.path.join(__filedir__, self.onnx_path))
-        dosa_args = f'{__tmp_dosa_config_json__} {onnx_abspath} {__tmp_constraint_json__} ' \
+        model_abspath = os.path.abspath(os.path.join(__filedir__, self.model_path))
+        dosa_args = f'{__tmp_dosa_config_json__} {self.used_flow} {model_abspath} {__tmp_constraint_json__} ' \
                     f'{os.path.abspath(self.output_path)}'
+        if self.calibration_data is not None:
+            dosa_args += f' --calibration-data {self.calibration_data}'
         if self.disable_roofline_gui:
             dosa_args += ' --no-roofline'
         elif self.disable_build:
@@ -83,15 +87,19 @@ class Emli(BasecampFlowModule):
         self.log.debug(f"calling DOSA... (with args: {dosa_args}).")
         self.log.debug(f"trying to import DOSA from {self.dosa_dir}.")
         sys.path.insert(0, self.dosa_dir)
-        from dimidium import dosa
+        from gradatim import dosa, DosaModelType
         """
-        def dosa(dosa_config_path, onnx_path, const_path, global_build_dir, show_graphics=True, generate_build=True,
-                 generate_only_stats=False, generate_only_coverage=False):
+        def dosa(dosa_config_path, model_type: DosaModelType, model_path: str, const_path: str, global_build_dir: str,
+                 show_graphics: bool = True, generate_build: bool = True, generate_only_stats: bool = False,
+                 generate_only_coverage: bool = False, calibration_data: str = None):
         """
         generate_build = not self.disable_build
         show_graphics = not self.disable_roofline_gui
-        dosa(__tmp_dosa_config_json__, onnx_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path),
-             show_graphics=show_graphics, generate_build=generate_build)
+        model_type = DosaModelType.ONNX
+        if self.used_flow == 'torchscript':
+            model_type = DosaModelType.TORCHSCRIPT
+        dosa(__tmp_dosa_config_json__, model_type, model_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path),
+             show_graphics=show_graphics, generate_build=generate_build, calibration_data=self.calibration_data)
 
     def compile(self, **kwargs):
         if not self._initialized_machine_specific:
@@ -137,7 +145,13 @@ class Emli(BasecampFlowModule):
             self.log.error("Kernel-mapping schema is NOT YET IMPLEMENTED.")
             return -1
         self.set_output_path(args['<path-to-output-directory>'])
-        self.set_onnx_path(args['<path-to-onnx>'])
+        used_flow = None
+        if args['onnx']:
+            used_flow = 'onnx'
+        elif args['torchscript']:
+            used_flow = 'torchscript'
+        self.set_model_path(used_flow, args['<path-to-onnx>'])
+        self.calibration_data = args['<path-to-calibration-data>']
         self.compile()
         return 0
 
@@ -149,9 +163,9 @@ class Emli(BasecampFlowModule):
         self.constraints_set = True
         return 0
 
-    def set_constraints(self, app_name, onnx_input_name, input_shape, input_size_t, bitwidth_of_weights,
-                        bitwidth_of_activations, batch_size, arch_gen_strategy, target_throughput=-1, target_latency=-1,
-                        resource_budget=-1, tvm_quantization='none'):
+    def set_constraints(self, app_name, onnx_input_name, input_shape, input_size_t,
+                        batch_size, arch_gen_strategy, target_throughput=-1, target_latency=-1,
+                        resource_budget=-1, quantization='none', bitwidth_of_weights=None, bitwidth_of_activations=None):
         if target_throughput == -1 and target_latency == -1 and resource_budget == -1:
             err_msg = "Either target_throughput, target_latency, or resource_budget must be defined. STOP."
             self.log.error(err_msg)
@@ -167,11 +181,11 @@ class Emli(BasecampFlowModule):
         self.app_constraints['name'] = app_name
         self.app_constraints['shape_dict'] = {onnx_input_name: input_shape}
         self.app_constraints['used_input_size_t'] = input_size_t
-        self.app_constraints['quantization'] = tvm_quantization
-        self.app_constraints['overwrite_dtypes']['data'] = f'int{bitwidth_of_activations}'
-        self.app_constraints['overwrite_dtypes']['weights'] = f'int{bitwidth_of_weights}'
-        self.app_constraints['overwrite_dtypes']['fixed_point_fraction_bits'] = bitwidth_of_weights - 1
-        self.app_constraints['overwrite_dtypes']['accum_bits_factor'] = 2
+        self.app_constraints['quantization'] = quantization
+        if (quantization == 'none') and (bitwidth_of_weights is not None and bitwidth_of_activations is not None):
+            overwrite_dtypes = {'data': f'int{bitwidth_of_activations}', 'weights': f'int{bitwidth_of_weights}',
+                                'fixed_point_fraction_bits': bitwidth_of_weights - 1, 'accum_bits_factor': 2}
+            self.app_constraints['overwrite_dtypes'] = overwrite_dtypes
         self.app_constraints['used_batch_n'] = batch_size
         self.app_constraints['target_sps'] = target_throughput
         self.app_constraints['target_latency'] = target_latency
@@ -187,6 +201,12 @@ class Emli(BasecampFlowModule):
     def set_output_path(self, output_path):
         self.output_path = os.path.abspath(output_path)
 
-    def set_onnx_path(self, onnx_path):
-        self.onnx_path = os.path.abspath(onnx_path)
+    def set_model_path(self, flow_type, model_path):
+        assert flow_type == 'onnx' or flow_type == 'torchscript'
+        self.model_path = os.path.abspath(model_path)
+        self.used_flow = flow_type
         self.model_set = True
+
+    def set_calibration_data_path(self, calibration_data_path):
+        self.calibration_data = os.path.abspath(calibration_data_path)
+
