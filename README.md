@@ -40,7 +40,6 @@ Options:
 
 Copyright EVEREST Consortium, licensed under the Apache License 2.0.
 For contact and more details please visit: https://everest-h2020.eu
-
 ```
 
 ## Setup
