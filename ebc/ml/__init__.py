@@ -2,7 +2,7 @@
 from .inference import Emli
 
 module = Emli
-identifier = 'ml_inference'
+identifier = 'ml-inference'
 
 docstrs = {'usage': 'ml-inference (--json-constraints <path-to-json-constraints> | --app-name <app-name> '
                     '--target-throughput <target-sps> --batch-size <batch-size> --used_bit_width <used-bit-width> '
@@ -21,3 +21,23 @@ docstrs = {'usage': 'ml-inference (--json-constraints <path-to-json-constraints>
                ('--map-weights <path-to-weights-file>', 'The file containing the weights for the kernel-weight-mapping schema.'),
                ('--calibration-data <path-to-calibration-data>', 'Points to the .npy file containing example data to calibrate transformation to quantized data types.')
            ]}
+
+climbing = {
+    'description_path': 'ml/lib/describe.md',
+    'run': {
+        'python': 'ml/lib/invoke.py'
+    },
+    'init': {
+        'python': 'ml/lib/init.py',
+        'docker': 'ml/lib/dockerfile_init',
+    },
+    'runtime_check': {
+        # path, signature to call (format string)
+        'python': ('ml/lib/check.py', 'check_cf_action_ready({action_name})')
+    }
+}
+
+# TODO: run and init code better via getter of the flow module?
+#  so that e.g. precision can be inserted etc?
+#  the arg dict is given as argument (and the detected indent)
+#  check still as file and signature

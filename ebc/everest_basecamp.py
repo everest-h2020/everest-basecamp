@@ -10,6 +10,7 @@ import dataflow
 import hpc
 import ml
 # import automatic
+import climbs
 # --------------------------------
 
 
@@ -31,14 +32,20 @@ class EverestBasecamp:
 
     def __init__(self, load_modules='default'):
         if load_modules == 'default':
-            # load_modules = [dataflow, hpc, ml, automatic]
-            load_modules = [dataflow, hpc, ml]
+            # list modules to load below
+            # --------------------------------
+            load_modules = [dataflow, hpc, ml, climbs]
+            # --------------------------------
         self._flows = {}
         self._doc_dict = {}
         for mod in load_modules:
             self._flows[mod.identifier] = mod.module()
             setattr(self, mod.identifier, self._flows[mod.identifier])
             self._doc_dict[mod.identifier] = mod.docstrs
+        # TODO: init climb flows hasattr(mod, 'climb')
+        for mod in load_modules:
+            if hasattr(mod, 'climbing'):
+                self._flows[climbs.identifier].add_flow_module(mod.identifier, mod, self._flows[mod.identifier])
         self._cli_dict = {}
         self.docstr = ''
         self._build_docstr()
