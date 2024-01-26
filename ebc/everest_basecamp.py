@@ -4,13 +4,14 @@ import os
 
 __filedir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, __filedir__)
+import climbs
+
 # import individual modules below
 # --------------------------------
 import dataflow
 import hpc
 import ml
 # import automatic
-import climbs
 # --------------------------------
 
 

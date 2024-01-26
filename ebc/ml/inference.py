@@ -1,9 +1,10 @@
 import sys
 import os
 import json
-import subprocess
 
 from ebc.flow_module import BasecampFlowModule
+from ebc.climb_module import BasecampClimbModule
+from ebc.climbs.climbs import Climbs, __from_pragma_string__
 
 __filedir__ = os.path.dirname(os.path.abspath(__file__))
 __default_dosa_config_path__ = os.path.abspath(os.path.join(__filedir__, 'dosa_config_default.json'))
@@ -14,7 +15,7 @@ __tmp_constraint_json__ = '/tmp/ecb-dosa-constraints.json'
 __tmp_dosa_config_json__ = '/tmp/ecb-dosa-config.json'
 
 
-class Emli(BasecampFlowModule):
+class Emli(BasecampFlowModule, BasecampClimbModule):
 
     def __init__(self):
         super().__init__()
@@ -35,6 +36,7 @@ class Emli(BasecampFlowModule):
         self.disable_build = False
         self.dosa_dir = None
         self.dosa_envs = {}
+        self.climb_obj = None
 
     def _load_machine_specific_files(self):
         with open(__config_json__, 'r') as inp:
@@ -120,6 +122,8 @@ class Emli(BasecampFlowModule):
             self.log.error(err_msg)
             return err_msg
         self._call_dosa()
+        # TODO
+        self.climb_obj.create_module_section()
 
     def cli(self, args, config):
         if not self._initialized_machine_specific:
@@ -209,4 +213,13 @@ class Emli(BasecampFlowModule):
 
     def set_calibration_data_path(self, calibration_data_path):
         self.calibration_data = os.path.abspath(calibration_data_path)
+
+    def get_run_code(self, args, language):
+        pass
+
+    def get_init_code(self, args, language):
+        pass
+
+    def set_climb_obj(self, climb_obj):
+        self.climb_obj = climb_obj
 
