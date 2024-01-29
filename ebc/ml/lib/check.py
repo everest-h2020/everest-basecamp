@@ -1,3 +1,6 @@
+###############################################
+# this code is required to check if an FPGA cluster
+#  to be used by DOSA is available
 import os
 import json
 import requests
@@ -60,3 +63,6 @@ def check_cf_action_ready(action_name, json_file='./user.json') -> bool:
         print("ERROR: Requested action is not defined.\nFAILED DEPENDENCY. STOP.")
         exit(1)
     return len(action['deployed_cluster_ids']) >= 1
+
+###############################################
+

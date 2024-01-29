@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+from pathlib import Path
 
 from ebc.flow_module import BasecampFlowModule
 from ebc.climb_module import BasecampClimbModule
@@ -17,8 +18,8 @@ __tmp_dosa_config_json__ = '/tmp/ecb-dosa-config.json'
 
 class Emli(BasecampFlowModule, BasecampClimbModule):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, identifier):
+        super().__init__(identifier)
         self._initialized_machine_specific = False
         with open(__default_dosa_config_path__, 'r') as inp:
             self.dosa_config = json.load(inp)
@@ -32,7 +33,7 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
         self.output_path = None
         self.map_weights = None
         self.calibration_data = None
-        self.disable_roofline_gui = False
+        self.disable_roofline_gui = True
         self.disable_build = False
         self.dosa_dir = None
         self.dosa_envs = {}
@@ -103,6 +104,9 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
         dosa(__tmp_dosa_config_json__, model_type, model_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path),
              show_graphics=show_graphics, generate_build=generate_build, calibration_data=self.calibration_data)
 
+    def enable_roofline_gui(self):
+        self.disable_roofline_gui = True
+
     def compile(self, **kwargs):
         if not self._initialized_machine_specific:
             self._load_machine_specific_files()
@@ -122,8 +126,13 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
             self.log.error(err_msg)
             return err_msg
         self._call_dosa()
-        # TODO
-        self.climb_obj.create_module_section()
+        init_format_dict = {'precision': int(self.app_constraints['used_input_size_t']),
+                            'action_name': __from_pragma_string__,
+                            'host_address': __from_pragma_string__}
+        run_format_dict = {'x': __from_pragma_string__, 'y': __from_pragma_string__}
+        files_to_copy = ['node_0/', 'dosa_deploy.py', 'cluster.json']
+        out_dir = os.path.abspath(self.output_path)
+        self.climb_obj.create_module_section(self, init_format_dict, run_format_dict, files_to_copy, out_dir)
 
     def cli(self, args, config):
         if not self._initialized_machine_specific:
@@ -146,7 +155,7 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
                                  arch_gen_strategy='throughput'
                                  )
         if args['--map-weights'] is not None:
-            self.log.error("Kernel-mapping schema is NOT YET IMPLEMENTED.")
+            self.log.error("Kernel-mapping schema is NOT YET IMPLEMENTED (requires Olympus support).")
             return -1
         self.set_output_path(args['<path-to-output-directory>'])
         used_flow = None
@@ -215,10 +224,31 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
         self.calibration_data = os.path.abspath(calibration_data_path)
 
     def get_run_code(self, args, language):
-        pass
+        if language != 'python':
+            self.log.error(f"language {language} is not supported by the ML inference flow.")
+            return -1
+        run_template = os.path.abspath(os.path.join(__filedir__, 'lib/invoke.py'))
+        template_lines = Path(run_template).read_text()
+        run_code = template_lines.format_map(args)
+        return run_code
 
     def get_init_code(self, args, language):
-        pass
+        if language == 'python':
+            if self.constraints_set:
+                add_args = {'precision': int(self.app_constraints['used_input_size_t'])}
+                args.update(add_args)
+            init_template = os.path.abspath(os.path.join(__filedir__, 'lib/init.py'))
+            template_lines = Path(init_template).read_text()
+            init_code = template_lines.format_map(args)
+            return init_code
+        elif language == 'docker':
+            docker_code = '#assuming to be executed in the corresponding application directory\n' \
+                          'COPY ./node_0/* ./node_0/\n' \
+                          'RUN cd ./node_0/ && make lib\n'
+            return docker_code
+        else:
+            self.log.error(f"language {language} is not supported by the ML inference flow.")
+            return -1
 
     def set_climb_obj(self, climb_obj):
         self.climb_obj = climb_obj

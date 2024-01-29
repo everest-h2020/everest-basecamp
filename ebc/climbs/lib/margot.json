@@ -1,0 +1,100 @@
+{
+	"name": "traffic",
+	"version": "0.1",
+	"blocks":
+	[
+		{
+			"name": "block1",
+
+			"monitors":
+			[
+				{
+					"name": "time_monitor",
+					"type": "float",
+					"log": [ "average" ],
+					"constructor": [ 1 ],
+					"stop": [{"time": "float"}]
+				}
+			],
+
+
+			"knobs":
+			[
+				{
+					"name": "version",
+					"type": "int",
+					"range": [ 0, 2, 1 ]
+				}
+			],
+
+			"metrics":
+			[
+				{
+					"name": "time",
+					"type": "float",
+					"distribution": "yes",
+					"observed_by": "time_monitor",
+					"reactive_inertia": 0,
+          			"prediction_plugin": "model",
+          			"prediction_parameters": 
+					[
+            			{
+              				"quality_threshold": "{'r2':0.8}"
+            			}
+          			]
+				}
+			],
+            "feature_distance":"euclidean",
+			"features":
+			[
+				{
+					"name": "hw",
+					"type": "int",
+					"comparison": "="
+				}
+			],
+
+			"agora":
+			{
+				"broker_url": "127.0.0.1:1883",
+				"broker_username": "",
+				"broker_password": "",
+				"broker_qos": 2,
+				"broker_ca": "",
+				"client_cert": "",
+				"client_key": "",
+        		"number_configurations_per_iteration": 20,
+        		"number_observations_per_configuration": 2,
+        		"max_number_iteration": 10,
+				"clustering_plugin": "cluster",
+				"clustering_parameters":
+				[
+					{"algorithm": "kmeans"},
+          			{"num_clusters":1},
+					{"adam_lock_features":"true"}
+				],
+				"doe_plugin": "doe",
+				"doe_parameters":
+				[
+					{"algorithm": "full-factorial"},
+					{"constraint": "version < 2"}
+				]
+			},
+
+			"extra-functional_requirements":
+			[
+				{
+					"name":"default",
+					"minimize":
+					{
+						"geometric_mean":
+						[
+							{"time": 1}
+						]
+					}
+				}
+                
+			]
+		}
+	]
+}

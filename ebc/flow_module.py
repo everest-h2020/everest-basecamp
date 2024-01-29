@@ -5,7 +5,8 @@ import logging
 
 class BasecampFlowModule(metaclass=abc.ABCMeta):
 
-    def __init__(self):
+    def __init__(self, identifier):
+        self.flow_identifier = identifier
         self.log = logging.getLogger(self.__class__.__name__)
 
     @abc.abstractmethod

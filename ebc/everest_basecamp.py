@@ -40,7 +40,7 @@ class EverestBasecamp:
         self._flows = {}
         self._doc_dict = {}
         for mod in load_modules:
-            self._flows[mod.identifier] = mod.module()
+            self._flows[mod.identifier] = mod.module(mod.identifier)
             setattr(self, mod.identifier, self._flows[mod.identifier])
             self._doc_dict[mod.identifier] = mod.docstrs
         # TODO: init climb flows hasattr(mod, 'climb')

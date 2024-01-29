@@ -1,0 +1,47 @@
+{
+	"block1":
+	[
+		{
+			"features":
+			{
+				"hw": 0
+			},
+			"knobs":
+			{
+				"version": 0
+			},
+			"metrics":
+			{
+				"time": [10.0,0.0]
+			}
+		},
+		{
+			"features":
+			{
+				"hw": 1
+			},
+			"knobs":
+			{
+				"version": 0
+			},
+			"metrics":
+			{
+				"time": [10.0,0.0]
+			}
+		},
+		{
+			"features":
+			{
+				"hw": 1
+			},
+			"knobs":
+			{
+				"version": 1
+			},
+			"metrics":
+			{
+				"time": [3.0,0.0]
+			}
+		}
+	]
+}
