@@ -242,13 +242,24 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
             init_code = template_lines.format_map(args)
             return init_code
         elif language == 'docker':
-            docker_code = '#assuming to be executed in the corresponding application directory\n' \
+            docker_code = '#assuming to be executed in the corresponding application directory ' \
+                          'and python is already installed\n' \
                           'COPY ./node_0/* ./node_0/\n' \
-                          'RUN cd ./node_0/ && make lib\n'
+                          'RUN cd ./node_0/ && make lib\n' \
+                          'RUN python -m pip install -r node_0/requirements.txt\n'
             return docker_code
         else:
             self.log.error(f"language {language} is not supported by the ML inference flow.")
             return -1
+
+    def get_install_notes(self):
+        install_notes = 'Some python modules are required (will be executed by the Dockerfile, if applicable):\n' \
+                        '```\n' \
+                        'virtualenv venv -p /usr/bin/python3.8\n' \
+                        '. venv/bin/activate\n' \
+                        'pip install -r node_0/requirements.txt\n' \
+                        '```\n'
+        return install_notes
 
     def set_climb_obj(self, climb_obj):
         self.climb_obj = climb_obj

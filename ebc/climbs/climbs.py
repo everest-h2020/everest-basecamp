@@ -176,16 +176,21 @@ class Climbs(BasecampFlowModule):
 
         variants = {}
         files_to_copy = []
+        install_notes = {}
         for vp in climb_file['variants']:
             with open(vp, 'r') as f:
                 module_file = json.load(f)
-            variants[module_file['module']] = module_file
+            mod_name = module_file['module']
+            variants[mod_name] = module_file
             dir_path = os.path.dirname(vp)
             for fp in module_file['relative_files_dirs_to_copy']:
                 # np = os.path.abspath(os.path.relpath(fp, vp))
                 np = os.path.abspath(os.path.join(dir_path, fp))
                 files_to_copy.append(np)
                 os.system(f"cp -R {np} {out_dir_path}/{fp}")
+            notes = self.flow_obj_dict[mod_name].get_install_notes()
+            if notes is not None:
+                install_notes[mod_name] = notes
 
         # margot files
         os.system(f"cp {os.path.abspath(os.path.join(__filedir__, 'lib/margot.json'))} {out_dir_path}")
@@ -299,6 +304,11 @@ class Climbs(BasecampFlowModule):
                 out_file.write("\nApparently, the app has it's own Dockerfile, so maybe:\n```bash\n"
                                f"docker build -f Dockerfile -t {app_name}:latest .\n"
                                "```\n")
+
+            if len(install_notes) > 0:
+                out_file.write("Furthermore, the following modules have specific installation instructions:\n")
+                for mod, notes in install_notes.items():
+                    out_file.write(f"- **{mod}**:\n{notes}\n")
             out_file.write('\nRun:\n'
                            '-------\n\n')
             out_file.write("For the runtime tuner:\n```bash\n"

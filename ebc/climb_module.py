@@ -15,3 +15,7 @@ class BasecampClimbModule(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def set_climb_obj(self, climb_obj):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_install_notes(self):
+        raise NotImplementedError
