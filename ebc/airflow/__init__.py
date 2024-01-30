@@ -6,8 +6,8 @@ identifier = 'airflow'
 
 docstrs = {'usage': f'{identifier} ( create | get_params | get_state | '
                     f'execute [--params-json-path <path-to-json-params>]) <workflow-name>',
-           'commands': (f'{identifier}', 'Allows the executions of Airflow workflows via Py4Lexis '
-                                         '(this flow requires python>=3.10) .'),
+           'commands': (f'{identifier}', 'Allows the executions of Airflow workflows via Py4Lexis.'),
+                                         # '(this flow requires python>=3.10) .'),
            'options': [
                ('create', 'Create a new Airflow workflow.'),
                ('get_params', 'Get the current parameters of a workflow.'),
