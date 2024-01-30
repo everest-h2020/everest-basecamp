@@ -12,6 +12,7 @@ import dataflow
 import hpc
 import ml
 # import automatic
+import airflow
 # --------------------------------
 
 
@@ -35,7 +36,7 @@ class EverestBasecamp:
         if load_modules == 'default':
             # list modules to load below
             # --------------------------------
-            load_modules = [dataflow, hpc, ml, climbs]
+            load_modules = [dataflow, hpc, ml, climbs, airflow]
             # --------------------------------
         self._flows = {}
         self._doc_dict = {}

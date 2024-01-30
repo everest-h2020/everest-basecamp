@@ -69,10 +69,12 @@ target/
 .venv
 env/
 venv/
+venv311/
 ENV/
 env.bak/
 venv.bak/
 
+my_requirements.txt
 
 # mkdocs documentation
 /site
@@ -91,4 +93,5 @@ venv.bak/
 
 # everest basecamp specific
 config.json
+
 

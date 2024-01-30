@@ -85,11 +85,9 @@ class Climbs(BasecampFlowModule):
                 __filedir__, '../', check_tuple[0])), check_tuple[1])
         flow_obj.set_climb_obj(self)
 
-    def climbing(self, climb_dict):
-        return None
-
     def compile(self, **kwargs):
-        self.climbing(**kwargs)
+        self.log.error("this function is not supported within the Climb module. STOP.")
+        return -1
 
     def cli(self, args, config):
         # print(args)

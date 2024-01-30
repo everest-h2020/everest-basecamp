@@ -13,14 +13,18 @@ EVEREST basecamp -- the basis for all EVEREST endeavors.
 Usage:
     ebc-cli dataflow <input-file> -o <path-to-output> --target <target> --threads <num> --enable-parallelism <bool> --c-limit <num> --amorphous <bool> 
     ebc-cli hpc [--lang <lang-id> --pipeline <pipeline> (-D <define>...) (-I <include>...)] <input> -o <path-to-output>
-    ebc-cli ml-inference (--json-constraints <path-to-json-constraints> | --app-name <app-name> --target-throughput <target-sps> --batch-size <batch-size> --used_bit_width <used-bit-width> --onnx-input-name <onnx-input-name> --onnx-input-shape <onnx-input-shape>) [--map-weights <path-to-weights-file>] onnx|torchscript<path-to-onnx> <path-to-output-directory> [--calibration-data <path-to-calibration-data>]
+    ebc-cli ml_inference onnx|torchscript (--json-constraints <path-to-json-constraints> | --app-name <app-name> --target-throughput <target-sps> --batch-size <batch-size> --used_bit_width <used-bit-width> --onnx-input-name <onnx-input-name> --onnx-input-shape <onnx-input-shape>) [--map-weights <path-to-weights-file>] <path-to-model.file> <path-to-output-directory> [--calibration-data <path-to-calibration-data>]
+    ebc-cli climbs (describe --flow <flow> | create --name <name> <path-to-file.climb> | add_module --module <path-to-module.section> <path-to-file.climb> | add_file --file <path-to-source.file> --language <language> <path-to-file.climb> | emit <path-to-file.climb> [--output-directory <path-to-output-directory>])
+    ebc-cli airflow ( create | get_params | get_state | execute [--params-json-path <path-to-json-params>]) <workflow-name>
     ebc-cli -h|--help
     ebc-cli -v|--version
 
 Commands:
     dataflow                                          Invokes the dataflow flow of the EVEREST SDK.
     hpc                                               Invokes the HPC flow of the EVEREST SDK.
-    ml-inference                                      Invokes the ML inference flow of the EVEREST SDK.
+    ml_inference                                      Invokes the ML inference flow of the EVEREST SDK.
+    climbs                                            Combines different flows (i.e. "everest climbs") to one application.
+    airflow                                           Allows the executions of Airflow workflows via Py4Lexis (this flow requires python>=3.10) .
 
 Options:
     -h --help                                         Show this screen.
@@ -41,6 +45,18 @@ Options:
     --onnx-input-shape <onnx-input-shape>             The shape of the input in the ONNX graph.
     --map-weights <path-to-weights-file>              The file containing the weights for the kernel-weight-mapping schema.
     --calibration-data <path-to-calibration-data>     Points to the .npy file containing example data to calibrate transformation to quantized data types.
+    describe                                          Describes the required API for the flow.
+    --flow <flow>                                     Specifies the flow to describe.
+    create                                            Create a new flow.
+    add_module --module                               Add a new application variant to an existing climb.
+    add_file --file                                   Add file (with annotations) of the main application to the climb.
+    --language <language>                             The langauge of the added file. Currently supported are: python, docker, copy. (Copy means the file will be copied without change.)
+    emit                                              Emit created climb to build directory.
+    create                                            Create a new Airflow workflow.
+    get_params                                        Get the current parameters of a workflow.
+    get_state                                         Request the current state of a workflow.
+    execute                                           Trigger the execution of a workflow.
+    --params-json-path <path-to-json-params>          Optional update of workflow parameters for execution.
 
 Copyright EVEREST Consortium, licensed under the Apache License 2.0.
 For contact and more details please visit: https://everest-h2020.eu
