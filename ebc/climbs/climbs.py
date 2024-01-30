@@ -310,9 +310,9 @@ class Climbs(BasecampFlowModule):
                                "```\n")
 
             if len(install_notes) > 0:
-                out_file.write("Furthermore, the following modules have specific installation instructions:\n")
+                out_file.write("\nFurthermore, the following modules have specific installation instructions:\n")
                 for mod, notes in install_notes.items():
-                    out_file.write(f"- **{mod}**:\n{notes}\n")
+                    out_file.write(f"- **`{mod}`**:\n{notes}\n")
             out_file.write('\nRun:\n'
                            '-------\n\n')
             out_file.write("For the runtime tuner:\n```bash\n"
