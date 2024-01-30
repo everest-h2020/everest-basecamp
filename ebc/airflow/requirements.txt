@@ -1,0 +1,4 @@
+--index-url https://opencode.it4i.eu/api/v4/projects/107/packages/pypi/simple
+py4lexis==1.4.0
+python-irodsclient @ git+https://github.com/lexis-project/python-irodsclient.git@7992afa83640ed02f66c8f823f4d375a2992a263
+
