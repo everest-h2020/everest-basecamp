@@ -12,7 +12,7 @@ __supported_languages__ = __supported_programming_languages__ + ['copy']
 __climb_api_version__ = 0.1
 
 __climb_file_template__ = {'name': '', 'climb_version': __climb_api_version__,
-                           # 'out_path': '',
+                           'out_dir': '',
                            'main_files': [],  # list of tuples: (path, language)
                            'variants': [],  # list of path to module.section
                            }
@@ -102,7 +102,7 @@ class Climbs(BasecampFlowModule):
         if args['add_file']:
             self.add_file(args['<path-to-source.file>'], args['--language'], args['<path-to-file.climb>'])
         if args['emit']:
-            self.emit(args['<path-to-output-directory>'], args['<path-to-file.climb>'])
+            self.emit(args['<path-to-file.climb>'], args['<path-to-output-directory>'])
 
     def describe(self, flow_req):
         if flow_req not in self.description_paths:
@@ -119,6 +119,7 @@ class Climbs(BasecampFlowModule):
         if os.path.isdir(climb_file_path) and not os.path.isfile(climb_file_path):
             climb_file_path += f'/{name}.climb'
         climb_file_path = _harmonizing_climb_file_path(climb_file_path)
+        climb_file['out_dir'] = os.path.dirname(climb_file_path)
         with open(climb_file_path, 'w') as f:
             json.dump(climb_file, f)
         # self.log.info(f"Climb {climb_file_path} created successfully.")
@@ -161,10 +162,13 @@ class Climbs(BasecampFlowModule):
         with open(climb_file_path, 'w') as f:
             json.dump(climb_file, f)
 
-    def emit(self, out_dir, climb_file_path):
+    def emit(self, climb_file_path, out_dir=None):
         climb_file_path = _harmonizing_climb_file_path(climb_file_path)
         with open(climb_file_path, 'r') as f:
             climb_file = json.load(f)
+        if out_dir is None:
+            out_dir = climb_file['out_dir']
+            self.log.warning(f"Using the output directory: {out_dir}")
         out_dir_path = os.path.abspath(out_dir)
         os.system(f"mkdir -p {out_dir_path}")
         if len(climb_file['main_files']) < 1:
@@ -361,12 +365,17 @@ class Climbs(BasecampFlowModule):
             margot_call_code += f'{current_indent}if variant == {i}:\n'
             current_indent += '    '
             for l in lines:
-                margot_call_code += f'{current_indent}{l.lstrip()}\n'
+                if len(l.lstrip().rstrip()) == 0:
+                    continue
+                margot_call_code += f'{current_indent}{l.lstrip().rstrip()}\n'
             current_indent = current_indent[:-4]
         margot_call_code += f'{local_indent}    except:  # fallback to cpu version\n'
         current_indent = f'{local_indent}        '
+        # index 0 is basis version
         for l in variant_lines[0]:
-            margot_call_code += f'{current_indent}{l}\n'
+            if len(l.lstrip().rstrip()) == 0:
+                continue
+            margot_call_code += f'{current_indent}{l.lstrip().rstrip()}\n'
         margot_call_code += f'{local_indent}    end = time.time()\n{local_indent}    return end-start\n\n'
 
         margot_call_code += f'{local_indent}{__accelerate_function_name__}()\n\n'

@@ -8,7 +8,7 @@ docstrs = {'usage': 'climbs (describe --flow <flow> | '
                     'create --name <name> <path-to-file.climb> | '
                     'add_module --module <path-to-module.section> <path-to-file.climb> | '
                     'add_file --file <path-to-source.file> --language <language> <path-to-file.climb> | '
-                    'emit --output-directory <path-to-output-directory> <path-to-file.climb>)',
+                    'emit <path-to-file.climb> [--output-directory <path-to-output-directory>])',
            'commands': ('climbs', 'Combines different flows (i.e. "everest climbs") to one application.'),
            'options': [
                ('describe', 'Describes the required API for the flow.'),

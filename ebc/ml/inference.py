@@ -87,6 +87,9 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
         # os.system(cmd)
         # subprocess.run(cmd, shell=True, stdin=sys.stdin.fileno(), stdout=sys.stdout.fileno(),
         #                stderr=sys.stderr.fileno())
+        self.log.debug("setting DOSA specific environment variables")
+        for k, v in self.dosa_envs.items():
+            os.environ[k] = v
         self.log.debug(f"calling DOSA... (with args: {dosa_args}).")
         self.log.debug(f"trying to import DOSA from {self.dosa_dir}.")
         sys.path.insert(0, self.dosa_dir)
