@@ -12,7 +12,7 @@ For further details, please refer to the `py4lexis` documentation: https://openc
 
 to use this environment in a jupyter notebook, execute
 ```bash
-# with virutalenv activated
+# with virtualenv activated
 $ python -m ipykernel install --user --name='venv-ebc' --display-name='EVEREST basecamp (venv)'
 ```
 
