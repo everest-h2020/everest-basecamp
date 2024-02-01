@@ -330,6 +330,12 @@ class Climbs(BasecampFlowModule):
                            "python. STOP")
             exit(-2)
 
+        if "return" not in all_args_dict:
+            self.log.warning("The `@basecamp climbs init args={}` dictionary does not contain a 'return' key. "
+                             "Therefore, basecamp can not guarantee that the right return value is processed by all "
+                             "variants. Please check the code.")
+            all_args_dict["return"] = None
+
         __select_variant_function_name__ = 'margot_select_variant'
         variant_selection_wrapper = f'def {__select_variant_function_name__}():\n'
         for i, check in enumerate(runtime_variant_checks):
@@ -360,7 +366,7 @@ class Climbs(BasecampFlowModule):
                             f'{local_indent}    start = time.time()\n{local_indent}    try:\n'
         current_indent = f'{local_indent}        '
         for i, lines in enumerate(variant_lines):
-            margot_call_code += f'{current_indent}if variant == {i}:\n'
+            margot_call_code += f'{current_indent}if version == {i}:\n'
             current_indent += '    '
             for l in lines:
                 if len(l.lstrip().rstrip()) == 0:
@@ -374,9 +380,10 @@ class Climbs(BasecampFlowModule):
             if len(l.lstrip().rstrip()) == 0:
                 continue
             margot_call_code += f'{current_indent}{l.lstrip().rstrip()}\n'
-        margot_call_code += f'{local_indent}    end = time.time()\n{local_indent}    return end-start\n\n'
+        margot_call_code += f'{local_indent}    end = time.time()\n{local_indent}    return (end-start), ' \
+                            f'{all_args_dict["return"]}\n\n'
 
-        margot_call_code += f'{local_indent}{__accelerate_function_name__}()\n\n'
+        margot_call_code += f'{local_indent}_, {all_args_dict["return"]} = {__accelerate_function_name__}()\n\n'
 
         return margot_call_code, code_to_append
 
