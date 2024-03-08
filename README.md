@@ -122,3 +122,10 @@ Therefore, the requirements for a basecamp module are short:
     - `module`: A variable that points to the module class, which must inherit from the [`BasecampFlowModule`](./ebc/flow_module.py) and implement the `cli` and `compile` methods.
 3. Add the `import <folder-name>` statement at the top of the [everest_basecamp.py](./ebc/everest_basecamp.py) file (below the line `import individual modules below`).  
 
+
+## Funding
+
+> This research was supported by the Horizon 2020 EU Research & Innovation programme under GA No 957269 (EVEREST project).
+
+
+
