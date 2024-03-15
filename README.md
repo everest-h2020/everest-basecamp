@@ -69,19 +69,10 @@ The basecamp tool has a modular architecture with separate setup requirements fo
 
 ### General requirements
 
-Basic build  and development tools are required. For example, on Red Hat Linux please execute the following:
-
-```bash
-$ yum install python3.8 python3-virtualenv
-$ yum groupinstall 'Development Tools'
-# for tvm and dosa (complete setup)
-$ yum install llvm-toolset llvm-devel llvm-libs cmake tmux
-```
-
-Then, we need a python virtual environment: 
+Basic build  and development tools are required. Also, we need a python virtual environment: 
 
  ```bash
-$ virtualenv venv -p /usr/bin/python3.8
+$ virtualenv venv -p /usr/bin/python3  ## at least python3.8, see special requirements of individual flows
 $ . venv/bin/activate
 $ pip install -r requirements.txt
 $ python -m ipykernel install --user --name='venv-ebc' --display-name='EVEREST basecamp (venv)'
