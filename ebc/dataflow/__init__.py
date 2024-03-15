@@ -20,8 +20,8 @@ from .ohua import Ohua
 module = Ohua
 identifier = 'dataflow'
 
-docstrs = {'usage': 'dataflow <input-file> -o <path-to-output> --target <target> --threads <num> '
-                    '--enable-parallelism <bool> --c-limit <num> --amorphous <bool> ',
+docstrs = {'usage': 'dataflow <input-file> -o <path-to-output> [--target <target>] [--threads <num>] '
+                    '[--enable-parallelism <bool>] [--c-limit <num>] [--amorphous <bool>]',
            'commands': ('dataflow', 'Invokes the dataflow flow of the EVEREST SDK.'),
            'options': [
                ('-o <path-to-output>', 'Path to save generated files under (defualts to `generated`).'),
