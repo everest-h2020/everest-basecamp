@@ -17,14 +17,43 @@
 
 from ebc.flow_module import BasecampFlowModule
 
+import subprocess
+
+# NOTE(feliix42): generate programmatically from the filename?
+__lowered_mlir__ = "lowered.mlir"
+__olympus_mlir__ = "olympus.mlir"
+__lowered_ll_ = "lowered.ll"
 
 class Ohua(BasecampFlowModule):
 
     def compile(self, **kwargs):
-        print("Please ask Felix for the state of this flow...")
+        print("This feature is not supported for dataflow flows")
         raise NotImplementedError
 
     def cli(self, args, config):
-        print("Please ask Felix for the state of this flow...")
-        raise NotImplementedError
+        # TODO:
+        # - config file for dfg path
+        # run dfg (llvm, olympus, llvmirjj)
+        with open(args["-o"] + __lowered_mlir__, 'w') as f:
+            res = subprocess.run([
+                "dfg-opt", "--insert-olympus-wrappers", "--convert-dfg-nodes-to-func", "--convert-scf-to-cf",
+                "--convert-cf-to-llvm", "--convert-dfg-edges-to-llvm", "--convert-arith-to-llvm",
+                "--convert-func-to-llvm", "--canonicalize", args['<input-file>']
+            ], stdout=f)
+            # TODO: Check if res == ok
+
+        with open(args["-o"] + __olympus_mlir__, 'w') as f:
+            res = subprocess.run([
+                "dfg-opt", "--convert-dfg-to-olympus", "--allow-unregistered-dialect", "-mlir-print-op-generic", args['<input-file>']
+            ], stdout=f)
+            # TODO: Check if res == ok
+
+        with open(args["-o"] + __lowered_ll__, 'w') as f:
+            res = subprocess.run([
+                "mlir-translate", "--mlir-to-llvmir", args['-o'] + __lowered_mlir__
+            ], stdout=f)
+            # TODO: Check if res == ok
+
+        return 0
+
 
