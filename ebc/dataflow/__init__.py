@@ -20,11 +20,13 @@ from .ohua import Ohua
 module = Ohua
 identifier = 'dataflow'
 
-docstrs = {'usage': 'dataflow <input-file> -o <path-to-output> [--target <target>] [--threads <num>] '
+docstrs = {'usage': 'dataflow (--dfg-src <input-file>|--olympus-src <input-file>) [--dfg-out <path-to-output>] [--olympus-out <path-to-output>] [--architecture <arch.json>] [--target <target>] [--threads <num>] '
                     '[--enable-parallelism <bool>] [--c-limit <num>] [--amorphous <bool>]',
            'commands': ('dataflow', 'Invokes the dataflow flow of the EVEREST SDK.'),
            'options': [
-               ('-o <path-to-output>', 'Path to save generated files under (defualts to `generated`).'),
+               ('--dfg-out <path-to-output>', 'Path to save generated dfg files under (defualts to `generated`).'),
+               ('--olympus-out <path-to-output>', 'Path to save generated Olympus files under (defualts to `olympus_gen`).'),
+               ('--architecture <arch.json>', 'Architecture description for Olympus in JSON format.'),
                ('--target <target>', 'Target for the code generator (supported values: rust, mlir).'),
                ('--threads <num>', 'Number of threads to parallelize for (default: number of local cores).'),
                ('--enable-parallelism <bool>', 'Whether to enable the parallelization optimization (defaults to `true`).'),

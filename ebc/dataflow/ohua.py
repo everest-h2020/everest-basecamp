@@ -34,25 +34,54 @@ class Ohua(BasecampFlowModule):
         # TODO:
         # - config file for dfg path
         # run dfg (llvm, olympus, llvmirjj)
-        with open(args["-o"] + __lowered_mlir__, 'w') as f:
-            res = subprocess.run([
-                "dfg-opt", "--insert-olympus-wrappers", "--convert-dfg-nodes-to-func", "--convert-scf-to-cf",
-                "--convert-cf-to-llvm", "--convert-dfg-edges-to-llvm", "--convert-arith-to-llvm",
-                "--convert-func-to-llvm", "--canonicalize", args['<input-file>']
-            ], stdout=f)
-            # TODO: Check if res == ok
+        print(args)
 
-        with open(args["-o"] + __olympus_mlir__, 'w') as f:
-            res = subprocess.run([
-                "dfg-opt", "--convert-dfg-to-olympus", "--allow-unregistered-dialect", "-mlir-print-op-generic", args['<input-file>']
-            ], stdout=f)
-            # TODO: Check if res == ok
+        # paths
+        dfg_outdir = args["--dfg-out"] if args["--dfg-out"] is not None else "generated"
+        olympus_outdir = args["--olympus-out"] if args["--olympus-out"] is not None else "generated"
+        olympus_mlir = args["<input-file>"] if args["--olympus-src"] else __olympus_mlir__
 
-        with open(args["-o"] + __lowered_ll__, 'w') as f:
+        # if dfg -> dfg -> (olympus if platform file)
+        # if oly -> (olympus if platform file)
+
+        if args["--dfg-src"]:
+            with open(dfg_outdir + '/' + __lowered_mlir__, 'w') as f:
+                res = subprocess.run([
+                    "dfg-opt", "--insert-olympus-wrappers", "--convert-dfg-nodes-to-func", "--convert-scf-to-cf",
+                    "--convert-cf-to-llvm", "--convert-dfg-edges-to-llvm", "--convert-arith-to-llvm",
+                    "--convert-func-to-llvm", "--canonicalize", args['<input-file>']
+                ], stdout=f)
+                # TODO: Check if res == ok
+
+            with open(dfg_outdir + '/' + __olympus_mlir__, 'w') as f:
+                res = subprocess.run([
+                    "dfg-opt", "--convert-dfg-to-olympus", "--allow-unregistered-dialect", "-mlir-print-op-generic", args['<input-file>']
+                ], stdout=f)
+                # TODO: Check if res == ok
+
+            with open(dfg_outdir + '/' + __lowered_ll__, 'w') as f:
+                res = subprocess.run([
+                    "mlir-translate", "--mlir-to-llvmir", args['-o'] + __lowered_mlir__
+                ], stdout=f)
+                # TODO: Check if res == ok
+
+            if args["--architecture"] is not None:
+                # run olympus
+                res = subprocess.run([
+                    "olympus", "--platform", args["--architecture"], "--application",
+                    olympus_mlir, "--output", olympus_outdir
+                ])
+
+        else:
+            if args["--architecture"] is None:
+                print("--architecture <arch.json> needs to be specified")
+                return 1
+
+            # run olympus
             res = subprocess.run([
-                "mlir-translate", "--mlir-to-llvmir", args['-o'] + __lowered_mlir__
-            ], stdout=f)
-            # TODO: Check if res == ok
+                "olympus", "--platform", args["--architecture"], "--application",
+                olympus_mlir, "--output", olympus_outdir
+            ])
 
         return 0
 
