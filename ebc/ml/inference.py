@@ -53,8 +53,10 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
         self.disable_roofline_gui = True
         self.disable_build = False
         self.dosa_dir = None
+        self.dosa_pyro4_uri = None
         self.dosa_envs = {}
         self.climb_obj = None
+        self._use_pyro4 = False
 
     def _load_machine_specific_files(self):
         with open(__config_json__, 'r') as inp:
@@ -66,7 +68,11 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
         # self.dosa_venv = os.path.abspath(os.path.join(__filedir__, module_config['venv_path']))
         # self.dosa_dir = os.path.dirname(self.dosa_exec)
         # self.dosa_dir = os.path.dirname(self.dosa_venv)
-        self.dosa_dir = os.path.abspath(os.path.join(__filedir__, module_config['dosa_dir_path']))
+        if 'dosa_pyro4_uri' in module_config and 'dosa_dir_path' not in module_config:
+           self.dosa_pyro4_uri = module_config['dosa_pyro4_uri']
+           self._use_pyro4 = True
+        else:
+            self.dosa_dir = os.path.abspath(os.path.join(__filedir__, module_config['dosa_dir_path']))
         envs = module_config['env_vars']
         self.dosa_envs = {}
         self.dosa_envs.update(envs)
@@ -107,22 +113,31 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
         self.log.debug("setting DOSA specific environment variables")
         for k, v in self.dosa_envs.items():
             os.environ[k] = v
-        self.log.debug(f"calling DOSA... (with args: {dosa_args}).")
-        self.log.debug(f"trying to import DOSA from {self.dosa_dir}.")
-        sys.path.insert(0, self.dosa_dir)
-        from gradatim import dosa, DosaModelType
-        """
-        def dosa(dosa_config_path, model_type: DosaModelType, model_path: str, const_path: str, global_build_dir: str,
-                 show_graphics: bool = True, generate_build: bool = True, generate_only_stats: bool = False,
-                 generate_only_coverage: bool = False, calibration_data: str = None):
-        """
         generate_build = not self.disable_build
         show_graphics = not self.disable_roofline_gui
-        model_type = DosaModelType.ONNX
-        if self.used_flow == 'torchscript':
-            model_type = DosaModelType.TORCHSCRIPT
-        dosa(__tmp_dosa_config_json__, model_type, model_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path),
-             show_graphics=show_graphics, generate_build=generate_build, calibration_data=self.calibration_data)
+        self.log.debug(f"calling DOSA... (with args: {dosa_args}).")
+        if not self._use_pyro4:
+            self.log.debug(f"trying to import DOSA from {self.dosa_dir}.")
+            sys.path.insert(0, self.dosa_dir)
+            from gradatim import dosa, DosaModelType
+            """
+            def dosa(dosa_config_path, model_type: DosaModelType, model_path: str, const_path: str, global_build_dir: str,
+                     show_graphics: bool = True, generate_build: bool = True, generate_only_stats: bool = False,
+                     generate_only_coverage: bool = False, calibration_data: str = None):
+            """
+            model_type = DosaModelType.ONNX
+            if self.used_flow == 'torchscript':
+                model_type = DosaModelType.TORCHSCRIPT
+            dosa(__tmp_dosa_config_json__, model_type, model_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path),
+                 show_graphics=show_graphics, generate_build=generate_build, calibration_data=self.calibration_data)
+        else:
+            import Pyro4
+            import Pyro4.util
+            self.log.debug(f"connect to Pyro4 URI: {self.dosa_pyro4_uri}")
+            dosa_proxy = Pyro4.Proxy(self.dosa_pyro4_uri)
+            print("DOSA inside docker called, please see the container logs for further messages...\n")
+            dosa_proxy.dosa_fwd(__tmp_dosa_config_json__, self.used_flow, model_abspath, __tmp_constraint_json__, os.path.abspath(self.output_path),
+                 show_graphics=show_graphics, generate_build=generate_build, calibration_data=self.calibration_data)
 
     def enable_roofline_gui(self):
         self.disable_roofline_gui = True
@@ -183,8 +198,9 @@ class Emli(BasecampFlowModule, BasecampClimbModule):
             used_flow = 'onnx'
         elif args['torchscript']:
             used_flow = 'torchscript'
-        self.set_model_path(used_flow, args['<path-to-onnx>'])
-        self.calibration_data = args['<path-to-calibration-data>']
+        self.set_model_path(used_flow, args['<path-to-model.file>'])
+        if '<path-to-calibration-data>' in args:
+            self.calibration_data = args['<path-to-calibration-data>']
         self.compile()
         return 0
 

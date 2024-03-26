@@ -20,12 +20,14 @@ from .inference import Emli
 module = Emli
 identifier = 'ml_inference'
 
-docstrs = {'usage': 'ml_inference onnx|torchscript (--json-constraints <path-to-json-constraints> | '
-                    '--app-name <app-name> '
-                    '--target-throughput <target-sps> --batch-size <batch-size> --used_bit_width <used-bit-width> '
-                    '--onnx-input-name <onnx-input-name> --onnx-input-shape <onnx-input-shape>) '
+docstrs = {'usage': 'ml_inference (onnx|torchscript) (--json-constraints <path-to-json-constraints> '
+                    '| ( --app-name <app-name> --target-throughput <target-sps> --batch-size <batch-size> '
+                    '--used_bit_width <used-bit-width> --onnx-input-name <onnx-input-name> '
+                    '--onnx-input-shape <onnx-input-shape>)) '
                     '[--map-weights <path-to-weights-file>] '
-                    '<path-to-model.file> <path-to-output-directory> [--calibration-data <path-to-calibration-data>]',
+                    '<path-to-model.file> <path-to-output-directory> '
+                    '[--calibration-data <path-to-calibration-data>]'
+                    ,
            'commands': ('ml_inference', 'Invokes the ML inference flow of the EVEREST SDK.'),
            'options': [
                ('--json-constraints <path-to-json-constraints>', 'Imports the ML target constraints of the given JSON file.'),

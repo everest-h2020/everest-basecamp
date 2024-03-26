@@ -1,5 +1,6 @@
 {
   "dosa_dir_path": "../path/from/here/to/DOSA/",
+  "dosa_pyro4_uri": " PYRO:obj_example@localhost:39375..Important: set this only if the pyro server is already running and remove dosa_dir_path",
   "env_vars": {
     "DOSA_cFBuild1_used_dcps_path": "../path/from/here/to/cloudFPGA/dcps/"
   }
