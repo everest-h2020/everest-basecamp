@@ -1,0 +1,735 @@
+#!/bin/env bash
+################################################################################
+# Copyright (c) 2023-2024 Virtual Open Systems SAS - All rights reserved.
+#
+# This source code is free software; you can redistribute it and/or modify it
+# under the terms and conditions of the GNU General Public License,
+# version 2, as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+# more details.
+#
+# File Name   : esfm
+# Author      : STEFANO CIRICI <s.cirici@virtualopensystems.com>
+# Description : This file composes the EVEREST SRIOV FPGA Manager
+#               functionalities allowing to initialize and control the Virtual
+#               Functions to VM association (attach, detach and pause) in a
+#               libvirt QEMU/KVM VMM.
+################################################################################
+
+# Fail fast
+set -E
+#set -e  # check if command fails, disabled for using err_check
+set -u
+set -o pipefail
+
+# Register trap function to interr()
+trap interr SIGINT SIGQUIT
+
+## FUNCTIONS ###################################################################
+
+# usage()
+#   Print usage of the script
+function usage() {
+cat <<EOF
+EVEREST SRIOV FPGA manager
+Utility to attach and detach VF to VMs
+
+Usage: $(basename $0) <pf_dev> <command> [options]
+
+  <pf_dev>                  Pass the PF device ID in the format
+                              DDDD:BB:DD.F Domain:Bus:Device.Function
+
+Available commands:
+  init <VF_NUM>             Init PF device with VF_NUM virtual functions and
+                              attach them to VM (flash bitstream if provided)
+  reconf <VF_NUM>           Reconfigure num of VF and attach them to VMs (can
+                              flash bitstream); use 0 to remove all VFs
+  attach <VF_IDX> <VM_NAME> Attach VF_IDX to VM_NAME
+  detach <VF_IDX>           Detach VF_IDX from the VM it is attached to
+  list_vfs                  List VF for a given PF
+  list_vf_vm                List VF association to VM
+  print_kernel              Print latest kernel flashed inside <pf_dev>
+
+Available options:
+  -b, --bitstream <file> <vf_type>
+                            Flash the provided bitstream and set the VF type
+  -qn, --queues_num <num>   Define number of queues during init, default is $Q_NUM_DEFAULT
+  -p, --pause               Pause the VF attached to the VMs when removing them
+  -h, --help                Print this help and exit
+  -q, --quiet               Do not print info messages
+  -d, --driver_log          Print driver log info
+  -v, --verbose             Print script debug info
+  -y, --yes                 Automatic yes to prompts
+EOF
+}
+
+# interr()
+#   Trap function
+function interr() {
+    trap - SIGINT SIGQUIT
+    echo
+    echo "Process interrupted"
+    exit 4 #EINTR
+}
+
+# msg(message string)
+#   Print log and errors if not in quiet mode
+#   $1 message string to print
+function msg() {
+    if [ $QUIET -eq 0 ] ; then
+        echo -e "${1-}"
+    fi
+}
+
+# err_check(ERR code, ERR msg)
+#   Check error code, eventually print the message, and exit if error
+#   $1 error code, 0 if no error
+#   $2 optional message to print if error occurs (error != 0)
+function err_check()
+{
+    if [ $1 != 0 ] ; then
+        if [ -n "$2" ] ; then
+            echo "ERROR $1: $2"
+        else
+            echo "ERROR $1"
+        fi
+        exit $1
+    fi
+}
+
+# ask(question)
+#   Ask a question and wait for y or Y response to continue, exit otherwise
+#   $1 question to ask
+function ask() {
+    if [ $# -ne 1 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+
+    if [ $ASSUME_YES -eq 0 ] ; then
+        # Ask to remove
+        while true; do
+            read -p "${1} [y/N] " yn
+            case $yn in
+                [Yy]* ) break;;
+                * )     echo "Exiting"; exit 0;;
+            esac
+        done
+    fi
+}
+
+# ask_yes(question, action ... )
+#   Ask a question and call a function if yes
+#   $1 question to ask
+#   $2+ function to call (with its arguments) on positive answer, do nothing otherwise
+#   NOTE: assume yes actually ignores the action (it is assumed no in this case)
+function ask_yes() {
+    if [ $# -lt 1 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+
+    if [ $ASSUME_YES -eq 0 ] ; then
+        # Ask to remove
+        while true; do
+            read -p "${1} [y/N] " yn
+            case $yn in
+                [Yy]* ) if [ $# -gt 1 ] ; then
+                            ${@:2};
+                        fi
+                        break;;
+                * )     break;;
+            esac
+        done
+    fi
+}
+
+# remove(PF dev ID)
+#   Remove a PF device (and all its VF) from PCI bus
+#   $1 PF device ID to be removed
+function remove() {
+    if [ $# -ne 1 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+    # Remove .F from DEV id
+    local pf_dev=${1:0:10}
+
+    ask "Are you sure you want to remove $pf_dev?"
+    msg "Removing device $pf_dev"
+
+    # Call qdma manage script and remove PCI device
+    $QDMA_MANAGER remove -b $pf_dev -y ${DRIVER_LOG}
+    err_check $? "Failed removing $pf_dev"
+}
+
+# rescan(PF dev ID)
+#   Rescan PCI bus
+function rescan() {
+    if [ $# -ne 1 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+    # Remove .F from DEV id
+    local pf_dev=${1:0:10}
+
+    msg "Rescanning PCI bus"
+
+    # Call qdma manage script and refresh PCI device list
+    $QDMA_MANAGER rescan -b $pf_dev -y ${DRIVER_LOG}
+    err_check $? "Failed rescanning PCI bus"
+}
+
+# flash_bitstream(bitstream file)
+#   Flash the bitstream to the FPGA
+#   $1 file bitsream.bit to flash
+function flash_bitstream() {
+    if [ $# -ne 1 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+    local bitstream=$1
+
+    if [ ! -f "$bitstream" ] ; then
+        err_check 2 "Invalid file $bitstream"
+    fi
+
+    ask "Are you sure you want to flash the FPGA bitstream?"
+    msg "Flashing $bitstream to FPGA"
+
+    # suspend trap during bitstream flashing
+    trap '' SIGINT SIGQUIT
+
+    if command -v xsct > /dev/null 2>&1
+    then
+        xsct ${PROGRAM_XSCT} ${bitstream}
+    elif command -v vivado > /dev/null 2>&1
+    then
+        vivado -notrace -nolog -nojournal -mode batch -source ${PROGRAM_VIVADO} -tclargs ${bitstream}
+    fi
+    err_check $? "Failed flashing bitstream $bitstream"
+
+    # resume trap
+    trap interr SIGINT SIGQUIT
+}
+
+# set_queues(PF dev ID, queues num)
+#   Set number of queues for PF device
+#   $1 ID of PF
+#   $2 num of queues to set
+function set_queues() {
+    if [ $# -ne 2 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+    local pf_dev=$1
+    local num_q=$2
+
+    msg "Adding $num_q queues to dev $pf_dev"
+    echo $num_q | sudo tee ${DEVICE_PATH}/${pf_dev}/qdma/qmax > /dev/null
+    err_check $? "Failed setting $num_q queues"
+
+    local num_q_check=$(cat ${DEVICE_PATH}/${pf_dev}/qdma/qmax 2> /dev/null)
+    if [ -z "$num_q_check" ] || [ $num_q_check -ne $num_q ] ; then
+        err_check 5 "Failed setting $num_q queues, set ${num_q_check:-0} instead"
+    fi
+}
+
+# check_vf_num(vf_num)
+#   Check if vf_num is valid
+#   $1 VF_NUM
+function check_vf_num() {
+    local vf_num=${1-}
+
+    # Check for a valid VF_NUM
+    max_num_vf=$(cat ${DEVICE_PATH}/${PF_DEV}/sriov_totalvfs 2> /dev/null)
+    if [ -z "$vf_num" ] ||
+        [[ $vf_num != ?(-)+([0-9]) ]] ||
+        [ $vf_num -lt 0 ]
+    then
+        echo "Please provide a valid VF_NUM"
+        usage
+        exit 22 #EINVAL
+    elif [ -z "$max_num_vf" ] 
+    then
+        err_check 2 "ERROR: cannot get number of sriov VF"
+    elif [ ${vf_num} -gt ${max_num_vf} ]
+    then
+        err_check 22 "ERROR: VF count ($vf_num) exceeds device limit ($max_num_vf). "
+    fi
+}
+
+# set_vfn(PF dev ID, VF num)
+#   Set VF number to PF device
+#   $1 ID of PF
+#   $2 num of VF to set
+function set_vfn() {
+    if [ $# -ne 2 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+    local pf_dev=$1
+    local num_vf=$2
+
+    msg "Creating $num_vf VFs on dev $pf_dev"
+    echo $num_vf | sudo tee ${DEVICE_PATH}/${pf_dev}/sriov_numvfs > /dev/null
+    err_check $? "Failed setting $num_vf VFs"
+
+    local num_vf_check=$(cat ${DEVICE_PATH}/${pf_dev}/sriov_numvfs 2> /dev/null)
+    if [ -z "$num_vf_check" ] || [ $num_vf_check -ne $num_vf ] ; then
+        err_check 5 "Failed setting $num_vf VFs, set ${num_vf_check:-0} instead"
+    fi
+}
+
+# check_vm_exist(vm name)
+#   Check if the VM vm_name exists
+#   $1 VM_NAME
+function check_vm_exist() {
+    local vm_name=${1-}
+
+    if [ -z "$vm_name" ] ; then
+        err_check 22 "Provide a valid VM name"
+    fi
+
+    local vm_check=$(virsh list --all | grep -w ${vm_name})
+    if [ -z "$vm_check" ] ; then
+        err_check 22 "VM $vm_name does not exist"
+    fi
+}
+
+# attach_detach_fake_device(ATTACH, VF_IDX, VM_NAME, VF_DEV, LIVE_PARAM)
+# attach or detach a fake console device to/from vm: VM_NAME
+#   $1 ATTACH (1 attach, 0 detach)
+#   $2 VF_IDX
+#   $3 VM_NAME
+#   $4 LIVE_PARAM VM alive or not
+function attach_detach_fake_device() {
+    local attach=$1
+    local vf_idx=$2
+    local vm_name=$3
+    local live_param=${4:-""}
+
+    local tmp_file=".everest_tmp_${PF_DEV}_${vf_idx}${TMP_EXT}"
+    local vf_bdf=$(virsh dumpxml ${vm_name} | grep "/hostdev" -B1 | awk -F"'" '/<address/{print $6$8$10}' | awk -F"0x" '{print $2$3$4}')
+    local tot_num_vf=$(cat ${DEVICE_PATH}/${PF_DEV}/sriov_numvfs 2> /dev/null)
+    local vf_type=$(cat "${VF_TYPE_PATH}")
+    vf_type=$(echo ${vf_type} | awk -F " " '{ print $1 }')
+
+cat << EOF > ${tmp_file}
+<channel type="file">
+  <source path="/dev/null" append='on'>
+  </source>
+  <target type="virtio" name="everestvf_${tot_num_vf:-0}_${vf_idx}_000${vf_bdf}_${vf_type}"/>
+</channel>
+EOF
+    if [ $attach -eq 1 ] ; then
+        virsh attach-device ${vm_name} ${tmp_file} ${live_param} --config > /dev/null
+    else
+        virsh detach-device ${vm_name} ${tmp_file} ${live_param} --config > /dev/null
+    fi
+    rm ${tmp_file}
+}
+
+# virsh_attach(VM name, VF dev ID)
+#   Attach or unpause VF device to virsh VM
+#   $1 VM name
+#   $2 VF IDX
+function virsh_attach() {
+    if [ $# -ne 2 ] ; then
+        err_check 22 "Invalid parameters to func ${FUNCNAME[0]}()"
+    fi
+    local vm_name=$1
+    local vf_idx=$2
+    # Check if VF with ID VF_IDX exists
+    if [ ! -d ${DEVICE_PATH}/${PF_DEV}/virtfn${vf_idx} ] ; then
+        err_check 22 "VF $VF_IDX does not exist"
+    fi
+
+    local vf_dev=$(realpath ${DEVICE_PATH}/${PF_DEV}/virtfn${vf_idx} | grep -o '[^\/]*$')
+
+    # Check if the VF is already attached to a VM
+    if [ -n "$(ls ${TMP_BASE}*${TMP_EXT} 2> /dev/null | grep ${vf_dev})" ] ; then
+        err_check 22 "VF $VF_IDX is already attached to a VM"
+    fi
+
+    local vf_file="${TMP_BASE}${vm_name}_${vf_dev}${TMP_EXT}"
+    local vm_live=$(virsh list | grep "${vm_name}" | grep "running" | wc -l)
+    if [ $PAUSE -eq 1 ] && [ $vm_live -eq 1 ] && [ -f $vf_file ] ; then
+        msg "Unpausing VF ${vf_idx} of live VM ${vm_name}"
+
+        # Bind VF to vfio drivers
+        $QDMA_MANAGER bind-vfio -b ${vf_dev} -y ${DRIVER_LOG}
+
+        # Sending QEMU monitor unpause command
+        virsh qemu-monitor-command ${vm_name} --pretty ${QEMU_CMD_UNPAUSE} > /dev/null
+    else
+        if [ -f $vf_file ] ; then
+            msg "It seems that a VF is already attached to VM ${vm_name}, skipping"
+            return
+        fi
+
+# Write xml configuration file for current VF device to be added to the VM with virsh
+cat << EOF > $vf_file
+<hostdev mode='subsystem' type='pci' managed='yes'>
+  <source>
+     <address domain='0x${vf_dev:0:4}' bus='0x${vf_dev:5:2}' slot='0x${vf_dev:8:2}' function='0x${vf_dev:11:1}'/>
+  </source>
+</hostdev>
+EOF
+
+        if [ -f "$vf_file" ] ; then
+            chmod 777 ${vf_file}
+        else
+            err_check 1 "Cannot create configuration file \"$vf_file\""
+        fi
+
+        local live_par=""
+        if [ $vm_live -eq 1 ] ; then
+            live_par="--live"
+            msg "Attaching VF ${vf_idx} to live VM ${vm_name}"
+        else
+            msg "Attaching VF ${vf_idx} to offline VM ${vm_name}"
+        fi
+        virsh attach-device ${vm_name} ${vf_file} ${live_par} --config > /dev/null
+        if [ $? -eq 0 ] ; then
+            attach_detach_fake_device 1 ${vf_idx} ${vm_name} ${live_par}
+        else
+            ask_yes "Do you want to remove the VF file \"${vf_file}\"?" rm $vf_file
+        fi
+    fi
+}
+
+# virsh_detach_all()
+#   Detach or pause VF devices from virsh VMs
+function virsh_detach_all() {
+
+    # Iterate on all VF
+    for vf_path in $(ls -d ${DEVICE_PATH}/${PF_DEV}/virtfn* 2>/dev/null)
+    do
+        vf_dev=$(echo $(realpath ${vf_path}) | grep -o '[^\/]*$')
+        tmp_file=$(ls ${TMP_BASE}*${TMP_EXT} 2> /dev/null | grep ${vf_dev})
+        # If the xml file exists, print vf_idx and vm_name association
+        if [[ -n "$tmp_file" ]]; then
+            # Print VF_IDX and VM_NAME
+            vf_idx=$(echo $vf_path | sed -e "s|.*virtfn\([0-9]*\)|\1|")
+            virsh_detach ${vf_idx}
+        fi
+    done
+}
+
+# virsh_detach
+#   $1 VF IDX
+function virsh_detach() {
+    local vf_idx=$1
+    local vf_dev=$(realpath ${DEVICE_PATH}/${PF_DEV}/virtfn${vf_idx} | grep -o '[^\/]*$')
+    # Check if the VF is not attached to a VM
+    vf_file=$(ls ${TMP_BASE}*${TMP_EXT} 2> /dev/null | grep ${vf_dev})
+    if [ ! -f "$vf_file" ] ; then
+        err_check 22 "VF $VF_IDX is not attached to a VM"
+    fi
+
+    local file=$(ls ${TMP_BASE}*${TMP_EXT} 2> /dev/null | grep ${vf_dev})
+    if [ -z "$file" ] ; then
+        err_check 2 "Failed finding configuration file for VF ${vf_dev}"
+    fi
+
+    local vm_name=$(echo $file | sed -e "s|${TMP_BASE}\(.*\)_.*${TMP_EXT}|\1|")
+    local vm_live=$(virsh list | grep "${vm_name}" | grep "running" | wc -l)
+    if [ $PAUSE -eq 1 ] && [ $vm_live -eq 1 ] ; then
+        msg "Pausing VF ${vf_idx} of live VM ${vm_name}"
+
+            # Sending QEMU monitor pause command
+            virsh qemu-monitor-command ${vm_name} --pretty ${QEMU_CMD_PAUSE} > /dev/null
+
+            # Unbind VF from its driver
+            $QDMA_MANAGER unbind -b ${vf_dev} -y ${DRIVER_LOG}
+    else
+        local live_par=""
+        if [ $vm_live -eq 1 ] ; then
+            live_par="--live"
+            msg "Detaching VF ${vf_idx} from live VM ${vm_name}"
+        else
+            msg "Detaching VF ${vf_idx} from offline VM ${vm_name}"
+        fi
+
+        attach_detach_fake_device 0 ${vf_idx} ${vm_name} ${live_par}
+        virsh detach-device ${vm_name} ${file} ${live_par} --config > /dev/null
+        if [ $? -eq 0 ] ; then
+            rm $file
+        else
+            ask_yes "Do you want to remove the VF file \"${file}\"?" rm $file
+        fi
+    fi
+}
+################################################################################
+
+# Constant parameters
+declare -r CFG_DIR="/usr/local/share/esfm"
+declare -r SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+declare -r QDMA_MANAGER="${SCRIPT_DIR}/tools/qdma_manager.sh"
+declare -r PROGRAM_XSCT="${SCRIPT_DIR}/tools/program_xsct.tcl"
+declare -r PROGRAM_VIVADO="${SCRIPT_DIR}/tools/program_vivado.tcl"
+declare -r DEVICE_PATH="/sys/bus/pci/devices"
+declare -r KERNEL_TYPE_FILE="everest_vf_type"
+declare -r TMP_EXT=".xml"
+declare -r Q_NUM_DEFAULT=32
+declare -r QEMU_CMD_PAUSE='{"execute":"device_pause","arguments":{"id":"hostdev0","pause":true}}'
+declare -r QEMU_CMD_UNPAUSE='{"execute":"device_pause","arguments":{"id":"hostdev0","pause":false}}'
+
+
+# Check availability of scripts
+if [ ! -f $QDMA_MANAGER ] ; then
+    err_check 2 "Missing QDMA manager script"
+fi
+if [ ! -f $PROGRAM_XSCT ] ; then
+    err_check 2 "Missing XSCT program script"
+fi
+if [ ! -f $PROGRAM_VIVADO ] ; then
+    err_check 2 "Missing Vivado program script"
+fi
+
+# Default parameter values
+QUIET=0
+ASSUME_YES=0
+INIT=0
+RECONF=0
+ATTACH=0
+DETACH=0
+LIST_VFS=0
+LIST_VF_VM=0
+PRINT_CURRENT_KERN=0
+BITFILE=""
+VF_TYPE=""
+VF_NUM=0
+VF_IDX=""
+PAUSE=0
+DRIVER_LOG="-q"
+Q_NUM=$Q_NUM_DEFAULT
+
+# Parse input parameters
+
+# If help, print usage
+if [ $# -eq 0 ] || [ "$1" == "-h" ] || [ "$1" == "--help" ] ; then
+    usage
+    exit 0
+fi
+
+# First parameter is always the Physical Function dev id
+PF_DEV=${1-}
+# Check for a valid PF dev ID
+if [[ ! "$PF_DEV" =~ ^[0-9A-Fa-f]{4}\:[0-9A-Fa-f]{2}\:[0-9A-Fa-f]{2}\.[0-7]{1}$ ]] ; then
+    err_check 22 "Invalid PF device ID ${PF_DEV-NULL}, format is DDDD:BB:DD.F"
+fi
+#shift the PF_DEV
+shift
+
+while [[ $# -gt 0 ]]
+do
+    case ${1-} in
+    # commands
+        init)                   INIT=1; VF_NUM=${2-}; shift ;;
+        reconf)                 RECONF=1; VF_NUM=${2-}; shift ;;
+        attach)                 ATTACH=1; VF_IDX=${2-}; VM_NAME=${3-}; shift; shift ;;
+        detach)                 DETACH=1; VF_IDX=${2-}; shift ;;
+        list_vfs)               LIST_VFS=1 ;;
+        list_vf_vm)             LIST_VF_VM=1 ;;
+        print_kernel)           PRINT_CURRENT_KERN=1 ;;
+    # options
+        -b | --bitstream)       BITFILE=${2-}; VF_TYPE=${3-}; shift; shift ;;
+        -qn | --queues_num)     Q_NUM=${2-}; shift ;;
+        -p | --pause)           PAUSE=1 ;;
+        -q | --quiet)           QUIET=1 ;;
+        -d | --driver_log)      DRIVER_LOG="" ;;
+        -y | --yes)             ASSUME_YES=1 ;;
+        -v | --verbose)         set -x ;;
+        -h | --help)            usage && exit 0 ;;
+        *)
+                                echo "Unknown option: ${1}"
+                                usage
+                                exit 22 #EINVAL
+                                ;;
+    esac
+    shift #shift command or option
+done
+
+# Mute driver log if quiet option enabled
+if [ $QUIET -eq 1 ] ; then
+    DRIVER_LOG="-q"
+fi
+
+if [ ! -d "$CFG_DIR" ] ; then
+    sudo mkdir -p ${CFG_DIR}
+    sudo chmod 777 ${CFG_DIR}
+fi
+# Create name of temp file for current PF after parsing of pf_dev argument
+declare -r TMP_BASE="${CFG_DIR}/${PF_DEV}_"
+# Create name of a temp file for the current vf type
+declare -r VF_TYPE_PATH="${CFG_DIR}/everest_vf_type"
+
+# Execute command
+if [ $INIT -eq 1 ] && [ $RECONF -eq 0 ] && [ $ATTACH -eq 0 ] && \
+    [ $DETACH -eq 0 ] && [ $LIST_VFS -eq 0 ] && [ $LIST_VF_VM -eq 0 ] && [ $PRINT_CURRENT_KERN -eq 0 ]; then
+# Init command
+
+    if [[ -n "$BITFILE" && -z "$VF_TYPE" ]] ; then
+        usage
+        exit 22
+    fi
+
+    # If tmp files are present, VF were assigned to VM but not detached
+    TMP_FILES=$(ls ${TMP_BASE}*${TMP_EXT} 2> /dev/null)
+    if [ -n "$TMP_FILES" ] ; then
+        msg "It seems like some devices are attached to some VM"
+        ask "They will be reset. Do you wish to proceed anyway?"
+
+        # Detach all VFs from VMs without pausing them
+        PAUSE=0
+        virsh_detach_all
+    fi
+
+    # make sure PCI dev info are up to date
+    rescan $PF_DEV
+
+    remove $PF_DEV
+
+    # Also flash bitstream if option is provided
+    if [[ -n "$BITFILE" ]] ; then
+        flash_bitstream $BITFILE
+        echo "${VF_TYPE}" > "${VF_TYPE_PATH}"
+        echo $(echo $(realpath ${BITFILE}) | grep -o '[^\/]*$') >> "${VF_TYPE_PATH}"
+        echo $(date) >> "${VF_TYPE_PATH}"
+        chmod 777 ${VF_TYPE_PATH}
+    fi
+
+    rescan $PF_DEV
+
+    # Check VF number argument
+    check_vf_num $VF_NUM
+
+    set_queues $PF_DEV $Q_NUM
+
+    if [ $VF_NUM -gt 0 ] ; then
+        set_vfn $PF_DEV $VF_NUM
+    fi
+
+elif [ $RECONF -eq 1 ] && [ $INIT -eq 0 ] && [ $ATTACH -eq 0 ] && \
+    [ $DETACH -eq 0 ] && [ $LIST_VFS -eq 0 ] && [ $LIST_VF_VM -eq 0 ] && [ $PRINT_CURRENT_KERN -eq 0 ];  then
+# Reconfigure command
+
+    if [[ -n "$BITFILE" && -z "$VF_TYPE" ]] ; then
+        usage
+        exit 22
+    fi
+
+    rescan $PF_DEV
+
+    # Check VF number argument
+    check_vf_num $VF_NUM
+
+    CURR_VF_NUM=$(cat ${DEVICE_PATH}/${PF_DEV}/sriov_numvfs 2> /dev/null)
+    if [ ${CURR_VF_NUM:-0} -eq $VF_NUM ] ; then
+        ask "There are already $VF_NUM VF, do you want to continue anyway?"
+    fi
+
+    virsh_detach_all
+
+    # Also flash bitstream if provided
+    if [[ -n "$BITFILE" ]] ; then
+        remove $PF_DEV
+        flash_bitstream $BITFILE
+        echo "${VF_TYPE}" > "${VF_TYPE_PATH}"
+        echo $(echo $(realpath ${BITFILE}) | grep -o '[^\/]*$') >> "${VF_TYPE_PATH}"
+        echo $(date) >> "${VF_TYPE_PATH}"
+        chmod 777 ${VF_TYPE_PATH}
+        rescan $PF_DEV
+        set_queues $PF_DEV $Q_NUM
+    fi
+
+    # Need to reset VF num before changing it
+    set_vfn $PF_DEV 0
+
+    if [ $VF_NUM -gt 0 ] ; then
+        set_vfn $PF_DEV $VF_NUM
+    fi
+
+elif [ $ATTACH -eq 1 ] && [ $INIT -eq 0 ] && [ $RECONF -eq 0 ] && \
+    [ $DETACH -eq 0 ] && [ $LIST_VFS -eq 0 ] && [ $LIST_VF_VM -eq 0 ] && [ $PRINT_CURRENT_KERN -eq 0 ]; then
+# Attach command
+
+    # Check if a VM named VM_NAME exists
+    check_vm_exist $VM_NAME
+
+    # Check if the VM has already a VF attached to it
+    # NO multiple VF to VM is supported for now
+    vm_check=$(ls ${TMP_BASE}*${TMP_EXT} 2> /dev/null | grep ${VM_NAME})
+    if [ -n "$vm_check" ] ; then
+        err_check 22 "VM $VM_NAME has already a VF attached"
+    fi
+
+    # Attach the VF to the VM
+    virsh_attach $VM_NAME $VF_IDX
+
+elif [ $DETACH -eq 1 ] && [ $INIT -eq 0 ] && [ $RECONF -eq 0 ] && \
+    [ $ATTACH -eq 0 ] && [ $LIST_VFS -eq 0 ] && [ $LIST_VF_VM -eq 0 ] && [ $PRINT_CURRENT_KERN -eq 0 ]; then
+# Detach command
+
+    # Check if VF with ID VF_IDX exists
+    if [ ! -d ${DEVICE_PATH}/${PF_DEV}/virtfn${VF_IDX} ] ; then
+        err_check 22 "VF $VF_IDX does not exist"
+    fi
+
+    # Detach VF
+    virsh_detach ${VF_IDX}
+
+elif [ $LIST_VFS -eq 1 ] && [ $INIT -eq 0 ] && [ $RECONF -eq 0 ] && \
+    [ $ATTACH -eq 0 ] && [ $DETACH -eq 0 ] && [ $LIST_VF_VM -eq 0 ] && [ $PRINT_CURRENT_KERN -eq 0 ]; then
+# List vfs command
+
+    # Check if any VF exist
+    ls ${DEVICE_PATH}/${PF_DEV} | grep virtfn > /dev/null 2>&1
+    if [[ $? == 0 ]] ; then
+
+        # Iterate on all VF
+        for vf_path in $(ls -d ${DEVICE_PATH}/${PF_DEV}/virtfn* | sort -V)
+        do
+            # Print VF_IDX and VF_DEV
+            vf_dev=$(echo $(realpath ${vf_path}) | grep -o '[^\/]*$')
+            vf_idx=$(echo $vf_path | sed -e "s|.*virtfn\([0-9]*\)|\1|")
+            printf "%3d  %s\n" ${vf_idx} ${vf_dev}
+        done
+    fi
+
+elif [ $LIST_VF_VM -eq 1 ] && [ $INIT -eq 0 ] && [ $RECONF -eq 0 ] && \
+    [ $ATTACH -eq 0 ] && [ $DETACH -eq 0 ] && [ $LIST_VFS -eq 0 ] && [ $PRINT_CURRENT_KERN -eq 0 ]; then
+# List vf_vm command
+
+    # Check if any VF exist
+    ls ${DEVICE_PATH}/${PF_DEV} | grep virtfn > /dev/null 2>&1
+    if [[ $? == 0 ]] ; then
+
+        # Iterate on all VF
+        for vf_path in $(ls -d ${DEVICE_PATH}/${PF_DEV}/virtfn*)
+        do
+            vf_dev=$(echo $(realpath ${vf_path}) | grep -o '[^\/]*$')
+            tmp_file=$(ls ${TMP_BASE}*${TMP_EXT} 2> /dev/null | grep ${vf_dev})
+            # If the xml file exists, print vf_idx and vm_name association
+            if [[ -n "$tmp_file" ]]; then
+                # Print VF_IDX and VM_NAME
+                vf_idx=$(echo $vf_path | sed -e "s|.*virtfn\([0-9]*\)|\1|")
+                vm_name=$(echo $tmp_file | sed -e "s|${TMP_BASE}\(.*\)_.*${TMP_EXT}|\1|")
+                printf "%3d  %s\n" ${vf_idx} ${vm_name}
+            fi
+        done
+    fi
+
+elif [ $PRINT_CURRENT_KERN -eq 1 ] && [ $LIST_VF_VM -eq 0 ] && [ $INIT -eq 0 ] && [ $RECONF -eq 0 ] && \
+    [ $ATTACH -eq 0 ] && [ $DETACH -eq 0 ] && [ $LIST_VFS -eq 0 ]; then
+    if [ -f ${VF_TYPE_PATH} ]; then
+        echo $(cat ${VF_TYPE_PATH})
+    else
+        echo "No file named everest_vf_type was found"
+    fi
+else
+    echo "ERROR: Select only one option!"
+    usage
+    exit 22 #EINVAL
+fi
+
+
+exit 0
