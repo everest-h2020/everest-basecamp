@@ -17,7 +17,21 @@
 
 from ebc.flow_module import BasecampFlowModule
 
+import datetime
+import os
 import subprocess
+import sys
+import yaml
+
+
+OHUA_CONFIG = {
+    "extra-features": ["tail-recursion"],
+    "integration-features": {
+        "arch": "SharedMemory",
+        "options": {}
+    },
+    "debug": { "log-level": "info" }
+}
 
 # NOTE(feliix42): generate programmatically from the filename?
 __lowered_mlir__ = "lowered.mlir"
@@ -31,20 +45,59 @@ class Ohua(BasecampFlowModule):
         raise NotImplementedError
 
     def cli(self, args, config):
+        global OHUA_CONFIG
         # TODO:
         # - config file for dfg path
-        # run dfg (llvm, olympus, llvmirjj)
-        print(args)
+        # - config for ohua path?
 
         # paths
         dfg_outdir = args["--dfg-out"] if args["--dfg-out"] is not None else "generated"
+        ohua_outdir = args["--ohua-out"] if args["--ohua-out"] is not None else "generated"
         olympus_outdir = args["--olympus-out"] if args["--olympus-out"] is not None else "generated"
         olympus_mlir = args["<input-file>"] if args["--olympus-src"] else __olympus_mlir__
 
+        # if ohua -> rust-to-rust, ignore the rest
         # if dfg -> dfg -> (olympus if platform file)
         # if oly -> (olympus if platform file)
 
-        if args["--dfg-src"]:
+        if args["--ohua-src"]:
+            print(args)
+            target = args["--target"] if args["--target"] is not None else "rust"
+            if target != "rust":
+                print("ERROR: Unsupported target.")
+                sys.exit(1)
+
+            if args["--enable-parallelism"] == True or args["--enable-parallelism"] is None:
+                num_threads = int(args["--threads"]) if args["--threads"] is not None else os.cpu_count()
+                OHUA_CONFIG["integration-features"]["options"]["data-parallelism"] = num_threads
+
+            if args["--amorphous"]:
+                if args["--c-limit"] is None:
+                    print("ERROR: must specify the --c-limit <num> value")
+                    sys.exit(1)
+
+                limit = int(args["--c-limit"])
+                OHUA_CONFIG["integration-features"]["options"]["amorphous"] = limit
+
+            config_file = "/tmp/ohua-config-{}.yaml".format(datetime.datetime.now().isoformat())
+            with open(config_file, 'w') as ohua_cnf:
+                yaml.dump(OHUA_CONFIG, ohua_cnf)
+
+            res = subprocess.run(["mkdir", "-p", ohua_outdir])
+            # TODO: check if res == ok
+            res = subprocess.run(["rm", "-rf", "{}/*".format(ohua_outdir)])
+            # TODO: check if res == ok
+
+            modname = os.path.basename(args['<input-file>']).split('.')[0]
+            print(modname)
+            with open("{}/lib.rs".format(ohua_outdir), 'w') as f:
+                f.write("pub mod {};".format(modname))
+                # TODO: Multiple files? Append mode?
+
+            res = subprocess.run(["ohuac", "build", args['<input-file>'], "-o", ohua_outdir, "-c", config_file])
+            # TODO: check if res == ok
+
+        elif args["--dfg-src"]:
             with open(dfg_outdir + '/' + __lowered_mlir__, 'w') as f:
                 res = subprocess.run([
                     "dfg-opt", "--insert-olympus-wrappers", "--convert-dfg-nodes-to-func", "--convert-scf-to-cf",
@@ -71,7 +124,6 @@ class Ohua(BasecampFlowModule):
                     "olympus", "--platform", args["--architecture"], "--application",
                     olympus_mlir, "--output", olympus_outdir
                 ])
-
         else:
             if args["--architecture"] is None:
                 print("--architecture <arch.json> needs to be specified")
