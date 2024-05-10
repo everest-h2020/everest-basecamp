@@ -102,7 +102,7 @@ The setup of the available modules (`ml`, `dataflow`, `hpc`) is independent of e
 This sections states the requirements for each module and is intended to be read by the *developers* of the individual modules: 
 
 Basecamp is designed to give a unified experience to the user while keeping the dependencies between the modules minimal.
-Therefore, the requirements for a basecamp module are short:
+The requirements for a basecamp module are:
 1. It must be in a subfolder within [`./ebc`](./ebc)
 2. This subfolder must contain a `__init__.py` that contains three objects:
     - `identifier`: A string that is unique for this module and is following python variable name restrictions (i.e. it must start with a letter or underscore and consists only of letters, numbers, and underscores) (it is used as an attribute internally).
