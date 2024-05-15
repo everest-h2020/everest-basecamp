@@ -15,11 +15,21 @@
 #  *******************************************************************************/
 #
 
-from .cfdlang import Cfdlang
+from .messner import Messner
 
-module = Cfdlang
+module = Messner
 identifier = 'hpc'
 
-docstrs = {'usage': 'hpc [--lang <lang-id> --pipeline <pipeline> (-D <define>...) (-I <include>...)] <input> -o <path-to-output>',
-           'commands': ('hpc', 'Invokes the HPC flow of the EVEREST SDK.'),
-           'options': []}
+docstrs = {'usage': 'hpc [--ekl-passes <pipeline>] [--messner-out <path-to-output>] '
+                    '<input-file> '
+                    '[--mlir-disable-threading] [--mlir-print-ir-after-failure] '
+                    '[--mlir-print-debuginfo] [--mlir-print-op-generic]',
+           'commands': ('hpc', 'Invokes the messner compiler for the EVEREST kernel language (EKL).'),
+           'options': [
+                ('--ekl-passes <pipeline>',        'Textual MLIR pass pipeline to augment default pipeline.'),
+                ('--messner-out <path-to-output>', 'Path to the messner MLIR output directory (defaults to `generated`).'),
+                ('--mlir-disable-threading',       'Disable multithreading during MLIR optimization passes.'),
+                ('--mlir-print-ir-after-failure',  'Print the MLIR to stderr when compilation fails.'),
+                ('--mlir-print-debuginfo',         'Emit debug information and source locations in the MLIR output.'),
+                ('--mlir-print-op-generic',        'Emit generic MLIR for non-EVEREST SDK tools.'),
+           ]}
