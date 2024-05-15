@@ -18,7 +18,7 @@
 from .bambu import Bambu
 
 module = Bambu
-identifier = 'hpc'
+identifier = 'bambu'
 
 docstrs = {'usage': 'synthesis [--device-name=<device> --clock-period=<value>] <input-file> --top-fname=<name>',
            'commands': ('synthesis', 'Invokes the HLS tool of the EVEREST SDK.'),
