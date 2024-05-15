@@ -57,6 +57,7 @@ class EverestBasecamp:
         self._flows = {}
         self._doc_dict = {}
         for mod in load_modules:
+            assert mod.identifier not in self._flows
             self._flows[mod.identifier] = mod.module(mod.identifier)
             setattr(self, mod.identifier, self._flows[mod.identifier])
             self._doc_dict[mod.identifier] = mod.docstrs
